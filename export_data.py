@@ -58,6 +58,7 @@ from data_loader import (
     carregar_dados_xml,
     carregar_dados_cvm,
     _download_cvm_blc4,
+    _download_cvm_pl,
     _normalizar_cnpj,
 )
 from sector_map import classificar_setor
@@ -198,7 +199,19 @@ def main():
                 if not all(c in df_filtered.columns for c in needed):
                     continue
 
-                pl_all = df_filtered.groupby("cnpj_norm")["VL_MERC_POS_FINAL"].sum()
+                # PL real do arquivo CDA PL
+                df_pl = _download_cvm_pl(ym)
+                pl_real = {}
+                if df_pl is not None and not df_pl.empty:
+                    pl_cnpj_col = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df_pl.columns else "CNPJ_FUNDO"
+                    if pl_cnpj_col in df_pl.columns and "VL_PATRIM_LIQ" in df_pl.columns:
+                        df_pl["cnpj_norm"] = df_pl[pl_cnpj_col].apply(_normalizar_cnpj)
+                        df_pl_f = df_pl[df_pl["cnpj_norm"].isin(cnpjs_alvo)]
+                        pl_real = dict(zip(df_pl_f["cnpj_norm"], df_pl_f["VL_PATRIM_LIQ"]))
+
+                # Fallback: PL aproximado
+                pl_approx = df_filtered.groupby("cnpj_norm")["VL_MERC_POS_FINAL"].sum()
+
                 mask = df_filtered["VL_MERC_POS_FINAL"] > 0
                 if "TP_APLIC" in df_filtered.columns:
                     tp_aplic_patterns = r"^A.{1,3}es(?:\s|$)|Brazilian Depository|Certificado"
@@ -211,7 +224,9 @@ def main():
                 if df_stocks.empty:
                     continue
 
-                df_stocks["pl"] = df_stocks["cnpj_norm"].map(pl_all)
+                df_stocks["pl"] = df_stocks["cnpj_norm"].map(
+                    lambda x: pl_real.get(x, pl_approx.get(x, 0))
+                )
                 df_stocks["pct_pl"] = (df_stocks["VL_MERC_POS_FINAL"] / df_stocks["pl"] * 100).fillna(0)
                 df_stocks["setor"] = df_stocks["CD_ATIVO"].map(lambda t: classificar_setor(t))
                 df_stocks["fonte"] = "CVM"

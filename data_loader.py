@@ -31,6 +31,7 @@ BASE_GERAL_PATH = r"G:\Drives compartilhados\Gestao_Base_Dados\Acompanhamento\Ba
 XML_BASE_PATH = r"G:\Drives compartilhados\Arquivos_XML_Fechamento"
 CACHE_DIR = os.path.join(_SCRIPT_DIR, "cache")
 CVM_ZIP_URL = "https://dados.cvm.gov.br/dados/FI/DOC/CDA/DADOS/cda_fi_{yyyymm}.zip"
+CVM_BLC4_ZIP_URL = "https://dados.cvm.gov.br/dados/FI/DOC/CDA/DADOS/cda_fi_BLC_4_{yyyymm}.zip"
 
 NS_GALGO = "http://www.sistemagalgo.com/SchemaPosicaoAtivos"
 NS_DOC = "urn:iso:std:iso:20022:tech:xsd:semt.003.001.04"
@@ -401,6 +402,52 @@ def _download_cvm_blc4(yyyymm: str) -> pd.DataFrame | None:
             except Exception:
                 pass
 
+    # Tentar primeiro o ZIP combinado (formato novo), depois o individual (formato antigo)
+    df = None
+    for url in [
+        CVM_ZIP_URL.format(yyyymm=yyyymm),
+        CVM_BLC4_ZIP_URL.format(yyyymm=yyyymm),
+    ]:
+        try:
+            resp = requests.get(url, timeout=120)
+            if resp.status_code != 200:
+                continue
+            with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+                csv_names = [n for n in zf.namelist() if "BLC_4" in n and n.endswith(".csv")]
+                if not csv_names:
+                    continue
+                with zf.open(csv_names[0]) as csvfile:
+                    df = pd.read_csv(csvfile, sep=";", encoding="latin-1", low_memory=False)
+            break
+        except Exception:
+            continue
+
+    if df is None:
+        return None
+
+    # Salvar cache
+    df.to_parquet(cache_path, index=False)
+    return df
+
+
+def _download_cvm_pl(yyyymm: str) -> pd.DataFrame | None:
+    """Baixa dados de PL (Patrimonio Liquido) do arquivo CDA PL da CVM."""
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    cache_path = os.path.join(CACHE_DIR, f"cvm_pl_{yyyymm}.parquet")
+
+    # Verificar cache
+    if os.path.exists(cache_path):
+        age_hours = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(cache_path))).total_seconds() / 3600
+        today = datetime.now()
+        ref_date = datetime(int(yyyymm[:4]), int(yyyymm[4:6]), 1)
+        months_old = (today.year - ref_date.year) * 12 + today.month - ref_date.month
+        if months_old > 3 or age_hours < 24:
+            try:
+                return pd.read_parquet(cache_path)
+            except Exception:
+                pass
+
+    # PL está dentro do ZIP combinado
     url = CVM_ZIP_URL.format(yyyymm=yyyymm)
     try:
         resp = requests.get(url, timeout=120)
@@ -408,15 +455,12 @@ def _download_cvm_blc4(yyyymm: str) -> pd.DataFrame | None:
             return None
 
         with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
-            # Buscar especificamente o BLC_4 dentro do ZIP
-            blc4_name = f"cda_fi_BLC_4_{yyyymm}.csv"
-            csv_names = [n for n in zf.namelist() if "BLC_4" in n and n.endswith(".csv")]
-            if not csv_names:
+            pl_names = [n for n in zf.namelist() if "_PL_" in n and n.endswith(".csv")]
+            if not pl_names:
                 return None
-            with zf.open(csv_names[0]) as csvfile:
+            with zf.open(pl_names[0]) as csvfile:
                 df = pd.read_csv(csvfile, sep=";", encoding="latin-1", low_memory=False)
 
-        # Salvar cache
         df.to_parquet(cache_path, index=False)
         return df
     except Exception:
@@ -466,8 +510,18 @@ def carregar_dados_cvm(cnpjs_interesse: tuple, cnpjs_com_xml: tuple, meses: int 
         if not all(c in df_filtered.columns for c in needed):
             continue
 
-        # PL aproximado: soma de TODAS as posições do fundo (não só ações)
-        pl_all = df_filtered.groupby("cnpj_norm")["VL_MERC_POS_FINAL"].sum()
+        # PL real: tentar obter do arquivo CDA PL (VL_PATRIM_LIQ)
+        df_pl = _download_cvm_pl(ym)
+        pl_real = {}
+        if df_pl is not None and not df_pl.empty:
+            pl_cnpj_col = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df_pl.columns else "CNPJ_FUNDO"
+            if pl_cnpj_col in df_pl.columns and "VL_PATRIM_LIQ" in df_pl.columns:
+                df_pl["cnpj_norm"] = df_pl[pl_cnpj_col].apply(_normalizar_cnpj)
+                df_pl_filtered = df_pl[df_pl["cnpj_norm"].isin(cnpjs_alvo)]
+                pl_real = dict(zip(df_pl_filtered["cnpj_norm"], df_pl_filtered["VL_PATRIM_LIQ"]))
+
+        # Fallback: PL aproximado pela soma de TODAS as posições no BLC_4
+        pl_approx = df_filtered.groupby("cnpj_norm")["VL_MERC_POS_FINAL"].sum()
 
         # Filtrar apenas posições em ações/BDRs/certificados (exclui debêntures, opções, futuros)
         mask = df_filtered["VL_MERC_POS_FINAL"] > 0
@@ -482,8 +536,10 @@ def carregar_dados_cvm(cnpjs_interesse: tuple, cnpjs_com_xml: tuple, meses: int 
         if df_stocks.empty:
             continue
 
-        # Construir records de forma vetorizada
-        df_stocks["pl"] = df_stocks["cnpj_norm"].map(pl_all)
+        # Usar PL real (do arquivo PL) quando disponível, senão fallback
+        df_stocks["pl"] = df_stocks["cnpj_norm"].map(
+            lambda x: pl_real.get(x, pl_approx.get(x, 0))
+        )
         df_stocks["pct_pl"] = (df_stocks["VL_MERC_POS_FINAL"] / df_stocks["pl"] * 100).fillna(0)
         df_stocks["setor"] = df_stocks["CD_ATIVO"].map(lambda t: classificar_setor(t))
         df_stocks["fonte"] = "CVM"
