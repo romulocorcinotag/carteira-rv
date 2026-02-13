@@ -210,64 +210,83 @@ def inject_css():
         }}
 
         /* ══════════════════════════════════════════════════
-           INPUTS — dark, bright text
+           INPUTS — dark background + bright text (agressivo)
         ══════════════════════════════════════════════════ */
-        .stSelectbox > div > div,
-        .stMultiSelect > div > div,
-        .stDateInput > div > div {{
-            background: {DARK_SURFACE} !important;
-            border-color: {DARK_BORDER} !important;
-            border-radius: 8px !important;
-            color: {DARK_TEXT} !important;
-        }}
+        /* --- Labels de todos os widgets --- */
         .stSelectbox label, .stMultiSelect label, .stDateInput label,
         .stSlider label, .stNumberInput label, .stTextInput label,
         .stRadio label, .stCheckbox label,
-        [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] p,
-        [data-testid="stWidgetLabel"] label, [data-testid="stWidgetLabel"] span,
-        .stSelectbox [data-testid="stWidgetLabel"],
-        .stMultiSelect [data-testid="stWidgetLabel"] {{
+        [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *,
+        label, .stApp label {{
             color: #D0D0E0 !important;
             font-size: 11px !important; text-transform: uppercase !important;
             letter-spacing: 0.5px !important; font-weight: 600 !important;
         }}
-        /* All widget labels globally — bright white */
-        label, .stApp label {{
-            color: #D0D0E0 !important;
-        }}
-        /* Slider specific */
-        .stSlider [data-testid="stTickBarMin"],
-        .stSlider [data-testid="stTickBarMax"],
-        .stSlider div[data-baseweb="slider"] div {{
+
+        /* --- Container do select/multiselect — forçar dark bg --- */
+        .stSelectbox > div > div,
+        .stMultiSelect > div > div,
+        .stDateInput > div > div,
+        .stSelectbox [data-baseweb="select"],
+        .stMultiSelect [data-baseweb="select"],
+        [data-baseweb="select"],
+        [data-baseweb="select"] > div {{
+            background: {DARK_SURFACE} !important;
+            background-color: {DARK_SURFACE} !important;
+            border-color: {DARK_BORDER} !important;
+            border-radius: 8px !important;
             color: {DARK_TEXT} !important;
         }}
+
+        /* --- Texto dentro dos selects (valor selecionado, placeholder) --- */
+        [data-baseweb="select"] span,
+        [data-baseweb="select"] div,
+        [data-baseweb="select"] input,
+        [data-baseweb="select"] [data-testid="stMarkdownContainer"],
+        [data-baseweb="select"] [data-testid="stMarkdownContainer"] p,
+        .stSelectbox div[data-baseweb="select"] *,
+        .stMultiSelect div[data-baseweb="select"] * {{
+            color: {DARK_TEXT} !important;
+            -webkit-text-fill-color: {DARK_TEXT} !important;
+        }}
+        /* Placeholder "Choose options" / "Select..." */
+        [data-baseweb="select"] [aria-live="polite"],
+        [data-baseweb="select"] .css-1dimb5e-singleValue,
+        [data-baseweb="select"] .css-qbdosj-Input input,
+        [data-baseweb="select"] input::placeholder {{
+            color: #9898B0 !important;
+            -webkit-text-fill-color: #9898B0 !important;
+            opacity: 1 !important;
+        }}
+
+        /* --- Focus state --- */
         .stSelectbox > div > div:focus-within,
         .stMultiSelect > div > div:focus-within {{
             border-color: {TAG_LARANJA} !important;
             box-shadow: 0 0 0 2px {ACCENT_GLOW} !important;
         }}
-        /* Force input text colors */
-        .stSelectbox div[data-baseweb="select"] span,
-        .stSelectbox div[data-baseweb="select"] div,
-        .stSelectbox div[data-baseweb="select"] input,
-        .stMultiSelect div[data-baseweb="select"] span,
-        .stMultiSelect div[data-baseweb="select"] div,
-        .stMultiSelect div[data-baseweb="select"] input {{
-            color: {DARK_TEXT} !important;
-        }}
+
+        /* --- Todos os inputs genéricos --- */
         .stDateInput input, .stNumberInput input, .stTextInput input {{
             color: {DARK_TEXT} !important;
+            -webkit-text-fill-color: {DARK_TEXT} !important;
             background: {DARK_SURFACE} !important;
         }}
         .stApp input, .stApp select, .stApp textarea {{
             color: {DARK_TEXT} !important;
+            -webkit-text-fill-color: {DARK_TEXT} !important;
+            background-color: {DARK_SURFACE} !important;
         }}
-        /* Dropdown arrow / icons */
+
+        /* --- Dropdown arrow / icons --- */
         .stSelectbox svg, .stMultiSelect svg, .stDateInput svg {{
             fill: #B0B0C8 !important;
         }}
-        [data-baseweb="select"] > div,
-        [data-baseweb="select"] > div > div {{
+
+        /* --- Slider --- */
+        .stSlider [data-testid="stTickBarMin"],
+        .stSlider [data-testid="stTickBarMax"],
+        .stSlider div[data-baseweb="slider"] div {{
             color: {DARK_TEXT} !important;
         }}
 
@@ -275,6 +294,7 @@ def inject_css():
         span[data-baseweb="tag"] {{
             background: linear-gradient(135deg, {TAG_VERMELHO}, #8B1A3A) !important;
             color: #FFFFFF !important;
+            -webkit-text-fill-color: #FFFFFF !important;
             border-radius: 6px !important; font-size: 11px !important;
             font-weight: 600 !important;
         }}
