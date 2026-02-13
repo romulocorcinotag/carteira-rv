@@ -146,11 +146,12 @@ def render_header(ultima_atualizacao=None):
     logo_html = f'<div class="tag-logo-box"><img src="data:image/png;base64,{logo_b64}"></div>' if logo_b64 else ""
     dt_html = ""
     if ultima_atualizacao:
-        dt_html = f"""
-        <div style="margin-left: auto; text-align: right; padding-right: 8px;">
-            <div style="font-size: 0.75rem; color: #999; font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px;">Ultima atualizacao</div>
-            <div style="font-size: 1.15rem; font-weight: 700; color: {TAG_VERMELHO}; margin-top: 2px;">{ultima_atualizacao}</div>
-        </div>"""
+        dt_html = (
+            '<div style="margin-left:auto;text-align:right;padding-right:8px;">'
+            '<div style="font-size:0.75rem;color:#999;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">Ultima atualizacao</div>'
+            f'<div style="font-size:1.15rem;font-weight:700;color:{TAG_VERMELHO};margin-top:2px;">{ultima_atualizacao}</div>'
+            '</div>'
+        )
     st.markdown(f"""
     <div class="tag-header">
         {logo_html}
