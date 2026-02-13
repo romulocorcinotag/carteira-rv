@@ -4,6 +4,7 @@ import numpy as np
 import plotly.graph_objects as go
 import os
 import base64
+from collections import Counter
 
 from data_loader import carregar_todos_dados, carregar_fundos_rv
 
@@ -444,8 +445,11 @@ def _calcular_sobreposicao_ativos(cart_a: dict, cart_b: dict) -> float:
 
 
 def _calcular_sobreposicao_setores(set_a: dict, set_b: dict) -> float:
-    """Calcula sobreposição entre dois dicts {setor: pct_pl}."""
-    common = set(set_a.keys()) & set(set_b.keys())
+    """Calcula sobreposição entre dois dicts {setor: pct_pl}.
+    Exclui setores genéricos ('Outros') que inflam artificialmente o resultado.
+    """
+    excluir = {"Outros", "Outros/Não classificado", ""}
+    common = (set(set_a.keys()) & set(set_b.keys())) - excluir
     return sum(min(set_a[k], set_b[k]) for k in common)
 
 
@@ -668,29 +672,27 @@ def main():
 
             # ─── 1. HEATMAP: Sobreposicao por Ativo ───
             st.markdown('<div class="tag-section-title">Sobreposicao por Ativo (% PL)</div>', unsafe_allow_html=True)
-            st.caption("Cada celula mostra a soma dos min(% PL) dos ativos em comum entre dois fundos. Diagonal mostra o total alocado em acoes.")
+            st.caption("Cada celula mostra a soma dos min(% PL) dos ativos em comum entre dois fundos. Para cada ativo compartilhado, considera-se o menor peso entre os dois fundos.")
 
-            overlap_ativos = np.zeros((n, n))
+            # Calcular sobreposição (sem diagonal - usa NaN para não distorcer a escala de cor)
+            overlap_ativos = np.full((n, n), np.nan)
             for i in range(n):
                 for j in range(n):
-                    if i == j:
-                        # Diagonal: total % alocado
-                        overlap_ativos[i][j] = sum(carteiras[nomes_comp[i]].values())
-                    else:
+                    if i != j:
                         overlap_ativos[i][j] = _calcular_sobreposicao_ativos(
                             carteiras[nomes_comp[i]], carteiras[nomes_comp[j]]
                         )
 
-            # Texto: diagonal diferente
+            # Texto: diagonal mostra qtd ativos, off-diagonal mostra %
             text_ativos = []
             for i in range(n):
                 row = []
                 for j in range(n):
-                    v = overlap_ativos[i][j]
                     if i == j:
-                        row.append(f"{v:.1f}%")
+                        n_at = len(carteiras[nomes_comp[i]])
+                        row.append(f"{n_at} ativos")
                     else:
-                        row.append(f"{v:.1f}%")
+                        row.append(f"{overlap_ativos[i][j]:.1f}%")
                 text_ativos.append(row)
 
             fig_heat_a = go.Figure(data=go.Heatmap(
@@ -701,11 +703,11 @@ def main():
                 texttemplate="%{text}",
                 textfont=dict(size=11, color="white"),
                 colorscale=[
-                    [0, "#e8eaf6"], [0.2, "#7986cb"],
-                    [0.4, "#3f51b5"], [0.6, "#283593"],
-                    [0.8, "#1a237e"], [1, "#0d1642"]
+                    [0, "#e8eaf6"], [0.25, "#7986cb"],
+                    [0.5, "#3f51b5"], [0.75, "#283593"],
+                    [1, "#1a237e"]
                 ],
-                hovertemplate="<b>%{y}</b> x <b>%{x}</b><br>Sobreposicao: %{z:.1f}%<extra></extra>",
+                hovertemplate="<b>%{y}</b> x <b>%{x}</b><br>Sobreposicao: %{text}<extra></extra>",
                 showscale=True,
                 colorbar=dict(title="% PL", ticksuffix="%"),
             ))
@@ -721,19 +723,26 @@ def main():
 
             # ─── 2. HEATMAP: Sobreposicao por Setor ───
             st.markdown('<div class="tag-section-title">Sobreposicao por Setor (% PL)</div>', unsafe_allow_html=True)
-            st.caption("Mesma logica aplicada por setor. Diagonal mostra total alocado.")
+            st.caption("Mesma logica aplicada por setor (excluindo setor 'Outros' para evitar inflacao artificial).")
 
-            overlap_setores = np.zeros((n, n))
+            overlap_setores = np.full((n, n), np.nan)
             for i in range(n):
                 for j in range(n):
-                    if i == j:
-                        overlap_setores[i][j] = sum(setores_map[nomes_comp[i]].values())
-                    else:
+                    if i != j:
                         overlap_setores[i][j] = _calcular_sobreposicao_setores(
                             setores_map[nomes_comp[i]], setores_map[nomes_comp[j]]
                         )
 
-            text_setores = [[f"{overlap_setores[i][j]:.1f}%" for j in range(n)] for i in range(n)]
+            text_setores = []
+            for i in range(n):
+                row = []
+                for j in range(n):
+                    if i == j:
+                        n_set = len([s for s in setores_map[nomes_comp[i]] if s not in {"Outros", ""}])
+                        row.append(f"{n_set} setores")
+                    else:
+                        row.append(f"{overlap_setores[i][j]:.1f}%")
+                text_setores.append(row)
 
             fig_heat_s = go.Figure(data=go.Heatmap(
                 z=overlap_setores,
@@ -743,11 +752,11 @@ def main():
                 texttemplate="%{text}",
                 textfont=dict(size=11, color="white"),
                 colorscale=[
-                    [0, "#fce4ec"], [0.2, "#ef9a9a"],
-                    [0.4, "#e53935"], [0.6, "#c62828"],
-                    [0.8, "#b71c1c"], [1, "#630D24"]
+                    [0, "#fce4ec"], [0.25, "#ef9a9a"],
+                    [0.5, "#e53935"], [0.75, "#c62828"],
+                    [1, "#630D24"]
                 ],
-                hovertemplate="<b>%{y}</b> x <b>%{x}</b><br>Sobreposicao: %{z:.1f}%<extra></extra>",
+                hovertemplate="<b>%{y}</b> x <b>%{x}</b><br>Sobreposicao: %{text}<extra></extra>",
                 showscale=True,
                 colorbar=dict(title="% PL", ticksuffix="%"),
             ))
@@ -885,54 +894,53 @@ def main():
                 _chart_layout(fig_hist_s, "", y_title="% PL Sobreposto")
                 st.plotly_chart(fig_hist_s, width="stretch")
 
-            # ─── 6. Ativos em Comum (tabela completa) ───
+            # ─── 6. Ativos em Comum ───
             st.markdown('<div class="tag-section-title">Ativos em Comum</div>', unsafe_allow_html=True)
-            st.caption("Todos os ativos presentes na carteira mais recente de TODOS os fundos selecionados, com o respectivo % PL em cada fundo.")
 
-            # Pegar todos ativos de cada fundo (não só top-15)
+            # Pegar todos ativos de cada fundo
             all_holdings = {}
             for nome_fundo in nomes_comp:
-                cnpj = nome_cnpj_map[nome_fundo]
-                df_f = df_pos[df_pos["cnpj_fundo"] == cnpj]
-                if df_f.empty:
-                    continue
-                ultima = df_f["data"].max()
-                df_ult = df_f[df_f["data"] == ultima]
-                all_holdings[nome_fundo] = dict(zip(df_ult["ativo"], df_ult["pct_pl"]))
+                all_holdings[nome_fundo] = carteiras[nome_fundo]
 
             if len(all_holdings) >= 2:
-                # Encontrar ativos em comum entre TODOS
-                names_h = list(all_holdings.keys())
-                common_all = set(all_holdings[names_h[0]].keys())
-                for nm in names_h[1:]:
-                    common_all = common_all & set(all_holdings[nm].keys())
+                # Encontrar todos ativos que aparecem em pelo menos 2 fundos
+                ativo_count = Counter()
+                for holdings in all_holdings.values():
+                    for ativo in holdings:
+                        ativo_count[ativo] += 1
 
-                if common_all:
+                ativos_compartilhados = {a for a, c in ativo_count.items() if c >= 2}
+
+                if ativos_compartilhados:
+                    st.caption(f"Ativos presentes em 2 ou mais fundos selecionados, com o respectivo % PL em cada fundo. Celulas vazias indicam que o fundo nao possui o ativo.")
+
                     rows = []
-                    for ativo in sorted(common_all):
-                        row_data = {"Ativo": ativo}
+                    for ativo in sorted(ativos_compartilhados):
+                        row_data = {"Ativo": ativo, "Fundos": ativo_count[ativo]}
                         pcts = []
                         for nome_fundo in nomes_comp:
                             pct = all_holdings.get(nome_fundo, {}).get(ativo, 0)
                             row_data[nome_fundo] = pct
-                            pcts.append(pct)
-                        row_data["_media"] = np.mean(pcts)
+                            if pct > 0:
+                                pcts.append(pct)
+                        row_data["_media"] = np.mean(pcts) if pcts else 0
                         rows.append(row_data)
 
-                    df_common = pd.DataFrame(rows).sort_values("_media", ascending=False)
+                    df_common = pd.DataFrame(rows).sort_values(["Fundos", "_media"], ascending=[False, False])
                     df_common = df_common.drop(columns=["_media"])
 
-                    # Formatar % PL
+                    # Formatar % PL (mostrar "-" para quem não tem)
                     for col in nomes_comp:
-                        df_common[col] = df_common[col].map(lambda x: f"{x:.1f}%")
+                        df_common[col] = df_common[col].map(lambda x: f"{x:.1f}%" if x > 0 else "—")
 
-                    st.dataframe(df_common, width="stretch", hide_index=True, height=min(400, 35 * len(df_common) + 38))
+                    st.dataframe(df_common, width="stretch", hide_index=True,
+                                 height=min(500, 35 * len(df_common) + 38))
 
-                    st.caption(f"{len(common_all)} ativos em comum entre os {len(nomes_comp)} fundos selecionados.")
+                    st.caption(f"{len(ativos_compartilhados)} ativos compartilhados entre os {len(nomes_comp)} fundos.")
                 else:
-                    st.info("Nenhum ativo em comum entre todos os fundos selecionados na data mais recente.")
+                    st.info("Nenhum ativo em comum entre os fundos selecionados.")
 
-                # Também mostrar tabela pairwise de quantidade de ativos em comum
+                # Tabela pairwise: qtd de ativos em comum por par
                 st.markdown('<div class="tag-section-title">Numero de Ativos em Comum (por par)</div>', unsafe_allow_html=True)
 
                 pair_data = []
@@ -943,14 +951,16 @@ def main():
                         common_pair = set(all_holdings.get(na, {}).keys()) & set(all_holdings.get(nb, {}).keys())
                         total_a = len(all_holdings.get(na, {}))
                         total_b = len(all_holdings.get(nb, {}))
+                        overlap_pct = _calcular_sobreposicao_ativos(
+                            all_holdings.get(na, {}), all_holdings.get(nb, {})
+                        )
                         pair_data.append({
                             "Fundo A": labels[i],
                             "Fundo B": labels[j],
                             "Ativos A": total_a,
                             "Ativos B": total_b,
                             "Em Comum": len(common_pair),
-                            "% Comum / A": f"{len(common_pair)/max(total_a,1)*100:.0f}%",
-                            "% Comum / B": f"{len(common_pair)/max(total_b,1)*100:.0f}%",
+                            "Sobreposicao": f"{overlap_pct:.1f}%",
                         })
 
                 if pair_data:
