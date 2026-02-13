@@ -276,20 +276,20 @@ def main():
     print(f"  -> CNPJs com dados: {df_posicoes['cnpj_fundo'].nunique()}")
 
     # ── 5. Cotas dos fundos (inf_diario) ──
-    print("\n[5/6] Exportando cotas dos fundos...")
+    print("\n[5/6] Exportando cotas dos fundos (10 anos)...")
     t0 = time.time()
     all_cnpjs_cotas = tuple(set(
         df_fundos["cnpj_norm"].dropna().tolist()
     ))
-    df_cotas = carregar_cotas_fundos(all_cnpjs_cotas, meses=36)
+    df_cotas = carregar_cotas_fundos(all_cnpjs_cotas, meses=120)
     cotas_path = os.path.join(DATA_DIR, "cotas_consolidado.parquet")
     df_cotas.to_parquet(cotas_path, index=False)
     print(f"  -> {len(df_cotas)} registros de cotas em {time.time()-t0:.1f}s")
 
     # ── 6. Estatísticas do universo ──
-    print("\n[6/6] Calculando estatisticas do universo...")
+    print("\n[6/6] Calculando estatisticas do universo (10 anos)...")
     t0 = time.time()
-    df_stats = carregar_universo_stats(meses=36)
+    df_stats = carregar_universo_stats(meses=120)
     stats_path = os.path.join(DATA_DIR, "universo_stats.parquet")
     if not df_stats.empty:
         df_stats.to_parquet(stats_path, index=False)

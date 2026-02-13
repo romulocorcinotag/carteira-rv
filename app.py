@@ -12,18 +12,28 @@ from data_loader import (
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Paleta TAG Investimentos
+# Paleta TAG Investimentos (conforme Guia de Marca 2021)
 # ──────────────────────────────────────────────────────────────────────────────
 TAG_VERMELHO = "#630D24"
 TAG_OFFWHITE = "#E6E4DB"
 TAG_LARANJA = "#FF8853"
 TAG_BRANCO = "#FFFFFF"
 TAG_CINZA_ESCURO = "#2C1A1A"
+TAG_CINZA_MEDIO = "#6A6864"
+TAG_AZUL_ESCURO = "#002A6E"
+# Paleta de apoio para gráficos e tabelas (9 cores do guia de marca)
 TAG_CHART_COLORS = [
-    "#630D24", "#FF8853", "#002A6E", "#5C85F7", "#58C6F5",
-    "#A485F2", "#6BDE97", "#FFBB00", "#ED5A6E", "#477C88",
-    "#8B5CF6", "#F97316", "#10B981", "#EF4444", "#3B82F6",
-    "#D946EF", "#14B8A6", "#F59E0B", "#EC4899", "#6366F1",
+    "#630D24",  # Vermelho vinho (principal)
+    "#FF8853",  # Laranja
+    "#002A6E",  # Azul escuro
+    "#5C85F7",  # Azul
+    "#58C6F5",  # Azul claro
+    "#A485F2",  # Lilás
+    "#6BDE97",  # Verde
+    "#FFBB00",  # Amarelo
+    "#ED5A6E",  # Rosa
+    "#477C88",  # Teal
+    "#6A6864",  # Cinza
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -50,94 +60,166 @@ def get_logo_base64():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# CSS
+# CSS (alinhado ao Guia de Marca TAG Investimentos)
 # ──────────────────────────────────────────────────────────────────────────────
 def inject_css():
     st.markdown(f"""
     <style>
+        /* ── Base & Tipografia ── */
         .stApp {{
             font-family: 'Tahoma', 'Inter', 'Segoe UI', sans-serif;
+            background-color: {TAG_OFFWHITE} !important;
+        }}
+        .stMainBlockContainer {{
+            max-width: 1280px;
+            padding-top: 1rem !important;
         }}
         .stMarkdown p, .stMarkdown li {{
-            font-size: 1.05rem !important;
-            line-height: 1.7 !important;
+            font-size: 0.95rem !important;
+            line-height: 1.65 !important;
+            color: {TAG_CINZA_ESCURO} !important;
         }}
-        .stTabs [data-baseweb="tab-list"] {{ gap: 0px; }}
+        /* ── Tabs ── */
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 0; background: transparent;
+            border-bottom: 2px solid {TAG_VERMELHO}18;
+        }}
         .stTabs [data-baseweb="tab"] {{
-            font-size: 16px !important; font-weight: 500 !important;
-            padding: 14px 28px !important; color: #666 !important;
+            font-size: 13px !important; font-weight: 500 !important;
+            padding: 12px 24px !important; color: {TAG_CINZA_MEDIO} !important;
+            text-transform: uppercase !important; letter-spacing: 0.5px !important;
+            border-bottom: 3px solid transparent !important;
+            transition: all 0.2s ease !important;
+        }}
+        .stTabs [data-baseweb="tab"]:hover {{
+            color: {TAG_VERMELHO} !important;
         }}
         .stTabs [aria-selected="true"] {{
             font-weight: 700 !important; color: {TAG_VERMELHO} !important;
             border-bottom: 3px solid {TAG_VERMELHO} !important;
         }}
+        /* ── DataFrames & Tabelas ── */
         .stDataFrame th {{
-            font-size: 13px !important; font-weight: 700 !important;
-            padding: 10px 14px !important;
+            font-size: 11px !important; font-weight: 600 !important;
+            padding: 10px 14px !important; text-transform: uppercase !important;
+            letter-spacing: 0.3px !important;
             background: {TAG_VERMELHO} !important; color: {TAG_BRANCO} !important;
         }}
-        .stDataFrame td {{ padding: 8px 14px !important; font-size: 13px !important; }}
+        .stDataFrame td {{
+            padding: 8px 14px !important; font-size: 13px !important;
+            color: {TAG_CINZA_ESCURO} !important;
+        }}
         .stMarkdown table {{
             width: 100% !important; border-collapse: collapse !important;
-            margin: 12px 0 !important;
+            margin: 12px 0 !important; border-radius: 6px !important;
+            overflow: hidden !important;
         }}
         .stMarkdown table th {{
             background: {TAG_VERMELHO} !important; color: {TAG_BRANCO} !important;
-            padding: 12px 18px !important; text-align: left !important;
-            font-weight: 600 !important;
+            padding: 11px 16px !important; text-align: left !important;
+            font-weight: 600 !important; font-size: 11px !important;
+            text-transform: uppercase !important; letter-spacing: 0.4px !important;
         }}
         .stMarkdown table td {{
-            padding: 10px 18px !important; border-bottom: 1px solid #eee !important;
+            padding: 10px 16px !important; border-bottom: 1px solid {TAG_OFFWHITE} !important;
+            font-size: 13px !important; color: {TAG_CINZA_ESCURO} !important;
         }}
         .stMarkdown table tr:nth-child(even) td {{
-            background: #f9f8f5 !important;
+            background: #f8f7f3 !important;
         }}
+        .stMarkdown table tr:hover td {{
+            background: {TAG_VERMELHO}08 !important;
+        }}
+        /* ── Inputs & Selectboxes ── */
+        .stSelectbox > div > div,
+        .stMultiSelect > div > div,
+        .stDateInput > div > div {{
+            border-color: {TAG_VERMELHO}30 !important;
+            border-radius: 6px !important;
+        }}
+        .stSelectbox > div > div:focus-within,
+        .stMultiSelect > div > div:focus-within {{
+            border-color: {TAG_VERMELHO} !important;
+            box-shadow: 0 0 0 1px {TAG_VERMELHO}40 !important;
+        }}
+        /* ── Multiselect pills ── */
+        span[data-baseweb="tag"] {{
+            background: {TAG_VERMELHO} !important; color: {TAG_BRANCO} !important;
+            border-radius: 4px !important; font-size: 12px !important;
+        }}
+        /* ── Header ── */
         .tag-header {{
-            display: flex; align-items: center; gap: 24px;
-            padding: 24px 0 18px 0; margin-bottom: 8px;
+            display: flex; align-items: center; gap: 20px;
+            padding: 16px 0 12px 0;
         }}
         .tag-logo-box {{
-            background: {TAG_VERMELHO}; border-radius: 14px;
-            padding: 14px 22px; display: flex; align-items: center;
-            justify-content: center; min-height: 56px;
+            background: {TAG_VERMELHO}; border-radius: 10px;
+            padding: 12px 18px; display: flex; align-items: center;
+            justify-content: center; min-height: 52px;
         }}
-        .tag-logo-box img {{ height: 56px; filter: brightness(0) invert(1); }}
+        .tag-logo-box img {{ height: 52px; filter: brightness(0) invert(1); }}
         .tag-header-text h1 {{
-            margin: 0; font-size: 2.5rem; font-weight: 700;
-            color: {TAG_VERMELHO}; letter-spacing: -0.5px;
+            margin: 0; font-size: 2.1rem; font-weight: 700;
+            color: {TAG_VERMELHO}; letter-spacing: -0.3px;
         }}
         .tag-header-text p {{
-            margin: 4px 0 0 0; font-size: 1.1rem; color: #777;
+            margin: 2px 0 0 0; font-size: 0.9rem; color: {TAG_CINZA_MEDIO};
+            letter-spacing: 0.2px;
         }}
+        /* ── Grafismo TAG (linha diagonal ascendente) ── */
         .tag-divider {{
-            height: 3px;
-            background: linear-gradient(90deg, {TAG_VERMELHO}, {TAG_LARANJA}, transparent);
-            margin: 22px 0; border: none;
+            height: 3px; border: none;
+            background: linear-gradient(135deg, {TAG_VERMELHO} 0%, {TAG_LARANJA} 40%, transparent 100%);
+            margin: 12px 0 20px 0;
         }}
         .tag-section-divider {{
-            height: 1px;
-            background: linear-gradient(90deg, {TAG_VERMELHO}33, transparent);
-            margin: 32px 0 24px 0; border: none;
+            height: 1px; border: none;
+            background: linear-gradient(90deg, {TAG_VERMELHO}20, transparent);
+            margin: 28px 0 20px 0;
         }}
+        /* ── Cards de metricas ── */
         .tag-metric-card {{
-            background: {TAG_BRANCO}; border-radius: 12px;
-            padding: 20px 16px; text-align: center;
-            border-left: 5px solid {TAG_VERMELHO};
-            box-shadow: 0 2px 12px rgba(0,0,0,0.07);
+            background: {TAG_BRANCO}; border-radius: 8px;
+            padding: 18px 14px; text-align: center;
+            border-top: 3px solid {TAG_VERMELHO};
+            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
+            transition: box-shadow 0.2s ease;
+        }}
+        .tag-metric-card:hover {{
+            box-shadow: 0 3px 16px rgba(99,13,36,0.1);
         }}
         .tag-metric-card .value {{
-            font-size: 2rem; font-weight: 700;
-            color: {TAG_VERMELHO}; line-height: 1.1;
+            font-size: 1.65rem; font-weight: 700;
+            color: {TAG_VERMELHO}; line-height: 1.15;
         }}
         .tag-metric-card .label {{
-            font-size: 0.85rem; color: #777; margin-top: 6px; font-weight: 500;
+            font-size: 0.78rem; color: {TAG_CINZA_MEDIO};
+            margin-top: 6px; font-weight: 500;
+            text-transform: uppercase; letter-spacing: 0.3px;
         }}
+        /* ── Section titles ── */
         .tag-section-title {{
-            font-size: 1.15rem; font-weight: 600; color: {TAG_VERMELHO};
-            margin: 24px 0 12px 0; padding-bottom: 8px;
-            border-bottom: 2px solid {TAG_VERMELHO}22;
+            font-size: 1.05rem; font-weight: 700; color: {TAG_VERMELHO};
+            margin: 28px 0 10px 0; padding-bottom: 8px;
+            border-bottom: 2px solid {TAG_VERMELHO}15;
+            text-transform: uppercase; letter-spacing: 0.4px;
         }}
+        /* ── Captions e info ── */
+        .stCaption, .stAlert {{
+            font-size: 0.82rem !important;
+        }}
+        /* ── Esconde sidebar ── */
         div[data-testid="stSidebar"] {{ display: none !important; }}
+        /* ── Expander ── */
+        details summary {{
+            font-weight: 600 !important; color: {TAG_VERMELHO} !important;
+            font-size: 0.9rem !important;
+        }}
+        /* ── Scrollbar sutil ── */
+        ::-webkit-scrollbar {{ width: 6px; }}
+        ::-webkit-scrollbar-track {{ background: transparent; }}
+        ::-webkit-scrollbar-thumb {{ background: {TAG_VERMELHO}30; border-radius: 3px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: {TAG_VERMELHO}60; }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -146,14 +228,33 @@ def inject_css():
 # Header
 # ──────────────────────────────────────────────────────────────────────────────
 def render_header():
+    from datetime import datetime
     logo_b64 = get_logo_base64()
     logo_html = f'<div class="tag-logo-box"><img src="data:image/png;base64,{logo_b64}"></div>' if logo_b64 else ""
+
+    # Data da última atualização dos dados
+    data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    cotas_path = os.path.join(data_dir, "cotas_consolidado.parquet")
+    if os.path.exists(cotas_path):
+        mod_time = datetime.fromtimestamp(os.path.getmtime(cotas_path))
+        data_atualizacao = mod_time.strftime("%d/%m/%Y %H:%M")
+    else:
+        data_atualizacao = "—"
+
     st.markdown(f"""
-    <div class="tag-header">
-        {logo_html}
-        <div class="tag-header-text">
-            <h1>Carteira RV</h1>
-            <p>Evolucao de Carteiras dos Fundos de Renda Variavel</p>
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+        <div class="tag-header">
+            {logo_html}
+            <div class="tag-header-text">
+                <h1>Carteira RV</h1>
+                <p>Evolucao de Carteiras dos Fundos de Renda Variavel</p>
+            </div>
+        </div>
+        <div style="text-align: right; padding-right: 4px;">
+            <div style="font-size: 0.7rem; color: {TAG_CINZA_MEDIO}; text-transform: uppercase;
+                        letter-spacing: 0.5px; font-weight: 600;">Atualizado em</div>
+            <div style="font-size: 0.85rem; color: {TAG_VERMELHO}; font-weight: 700;
+                        margin-top: 2px;">{data_atualizacao}</div>
         </div>
     </div>
     <div class="tag-divider"></div>
@@ -166,8 +267,8 @@ def render_header():
 def metric_card(label, value):
     return f"""
     <div class="tag-metric-card">
-        <div class="value">{value}</div>
         <div class="label">{label}</div>
+        <div class="value">{value}</div>
     </div>
     """
 
@@ -181,22 +282,42 @@ def _hex_to_rgba(hex_color, alpha=0.8):
     return f"rgba({r},{g},{b},{alpha})"
 
 
-def _chart_layout(fig, title, height=500, y_title="% do PL", y_suffix="%",
+def _chart_layout(fig, title, height=480, y_title="% do PL", y_suffix="%",
                   legend_h=True, margin_b=40):
     """Aplica layout padrão TAG a um gráfico Plotly."""
     legend = dict(
-        orientation="h", yanchor="bottom", y=1.02, font=dict(size=10)
-    ) if legend_h else dict(font=dict(size=11))
+        orientation="h", yanchor="bottom", y=1.02,
+        font=dict(size=11, color=TAG_CINZA_MEDIO, family="Tahoma, sans-serif"),
+        bgcolor="rgba(0,0,0,0)",
+    ) if legend_h else dict(
+        font=dict(size=11, color=TAG_CINZA_MEDIO, family="Tahoma, sans-serif")
+    )
 
     fig.update_layout(
-        title=dict(text=title, font=dict(size=17, color=TAG_VERMELHO)),
+        title=dict(text=title, font=dict(size=14, color=TAG_VERMELHO, family="Tahoma, sans-serif")) if title else {},
         height=height, template="plotly_white",
-        yaxis=dict(title=y_title, ticksuffix=y_suffix) if y_title else {},
+        yaxis=dict(
+            title=dict(text=y_title, font=dict(size=11, color=TAG_CINZA_MEDIO)),
+            ticksuffix=y_suffix,
+            tickfont=dict(size=10, color=TAG_CINZA_MEDIO),
+            gridcolor="#e8e6e0", gridwidth=1,
+            zeroline=True, zerolinecolor="#d0cec6", zerolinewidth=1,
+        ) if y_title else {},
+        xaxis=dict(
+            tickfont=dict(size=10, color=TAG_CINZA_MEDIO),
+            gridcolor="#e8e6e0", gridwidth=1,
+        ),
         legend=legend,
-        plot_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=40, r=20, t=60, b=margin_b),
-        font=dict(family="Tahoma, sans-serif"),
-        hoverlabel=dict(bgcolor="white", font_size=12),
+        plot_bgcolor=TAG_BRANCO,
+        paper_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=50, r=16, t=50 if title else 30, b=margin_b),
+        font=dict(family="Tahoma, sans-serif", color=TAG_CINZA_ESCURO),
+        hoverlabel=dict(
+            bgcolor=TAG_BRANCO, font_size=12,
+            font_color=TAG_CINZA_ESCURO,
+            bordercolor=TAG_VERMELHO + "40",
+        ),
+        hovermode="x unified",
     )
     return fig
 
@@ -406,15 +527,15 @@ def render_tabela_carteira_html(tbl):
         </tr>"""
 
     html = f"""
-    <div style="border-radius: 12px; overflow: hidden; box-shadow: 0 2px 16px rgba(0,0,0,0.08); border: 1px solid #e8e6df; margin: 8px 0 16px 0;">
+    <div style="border-radius: 8px; overflow: hidden; box-shadow: 0 1px 10px rgba(0,0,0,0.06); border: 1px solid {TAG_OFFWHITE}; margin: 8px 0 16px 0;">
         <table style="width: 100%; border-collapse: collapse; font-family: 'Tahoma', 'Inter', sans-serif;">
             <thead>
                 <tr style="background: {TAG_VERMELHO};">
-                    <th style="padding: 12px 14px; color: white; font-size: 12px; font-weight: 600; text-align: center; width: 40px;">#</th>
-                    <th style="padding: 12px 14px; color: white; font-size: 12px; font-weight: 600; text-align: left;">ATIVO</th>
-                    <th style="padding: 12px 14px; color: white; font-size: 12px; font-weight: 600; text-align: left;">SETOR</th>
-                    <th style="padding: 12px 14px; color: white; font-size: 12px; font-weight: 600; text-align: right;">VALOR</th>
-                    <th style="padding: 12px 14px; color: white; font-size: 12px; font-weight: 600; text-align: left; width: 200px;">% PL</th>
+                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: center; width: 36px; text-transform: uppercase; letter-spacing: 0.3px;">#</th>
+                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: left; text-transform: uppercase; letter-spacing: 0.3px;">Ativo</th>
+                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: left; text-transform: uppercase; letter-spacing: 0.3px;">Setor</th>
+                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: right; text-transform: uppercase; letter-spacing: 0.3px;">Valor</th>
+                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: left; width: 200px; text-transform: uppercase; letter-spacing: 0.3px;">% PL</th>
                 </tr>
             </thead>
             <tbody>
@@ -978,7 +1099,7 @@ def main():
         ibov_cnpj = list(BENCHMARK_CNPJS.values())[0]  # IBOVESPA proxy
         all_cnpjs_for_cotas = tuple(set(cnpjs_sel) | set(BENCHMARK_CNPJS.values()))
 
-        df_cotas = carregar_cotas_fundos(all_cnpjs_for_cotas, meses=36)
+        df_cotas = carregar_cotas_fundos(all_cnpjs_for_cotas, meses=120)
 
         if df_cotas.empty:
             st.warning("Sem dados de cotas disponíveis. Verifique a conexão com a CVM.")
@@ -1098,15 +1219,15 @@ def main():
                     _chart_layout(fig_dd, "", height=400, y_title="Drawdown (%)")
                     st.plotly_chart(fig_dd, use_container_width=True)
 
-                    # ─── G3: Ranking Quantil (janela móvel) — percentil real ───
-                    st.markdown(f'<div class="tag-section-title">Ranking Quantil — Janela {janela_label}</div>', unsafe_allow_html=True)
+                    # ─── G3: Percentil (janela móvel) ───
+                    st.markdown(f'<div class="tag-section-title">Percentil — Janela {janela_label}</div>', unsafe_allow_html=True)
                     st.caption("Posicao relativa do fundo no universo de fundos RV (0%=pior, 100%=melhor) com base no retorno acumulado na janela movel.")
 
                     rolling_ret = pivot_ret[all_cols].rolling(janela_du).apply(
                         lambda x: (1 + x).prod() - 1, raw=False
                     )
 
-                    df_stats = carregar_universo_stats(meses=36)
+                    df_stats = carregar_universo_stats(meses=120)
 
                     if not df_stats.empty and not rolling_ret.dropna(how="all").empty:
                         df_st = df_stats.set_index("data").reindex(pivot_ret.index)
@@ -1191,7 +1312,7 @@ def main():
                         fig_rank.update_yaxes(range=[0, 100])
                         st.plotly_chart(fig_rank, use_container_width=True)
                     else:
-                        st.info("Dados do universo insuficientes para calcular o ranking quantil.")
+                        st.info("Dados do universo insuficientes para calcular o percentil.")
 
                     # ─── G4: Capture Ratio (Upside vs Downside) ───
                     st.markdown('<div class="tag-section-title">Capture Ratio — Upside vs Downside</div>', unsafe_allow_html=True)
@@ -1259,12 +1380,16 @@ def main():
 
                             fig_cap.update_layout(
                                 height=480, template="plotly_white",
-                                xaxis=dict(title="Downside Capture (%)", ticksuffix="%"),
-                                yaxis=dict(title="Upside Capture (%)", ticksuffix="%"),
-                                font=dict(family="Tahoma, sans-serif"),
-                                legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10)),
-                                margin=dict(l=50, r=20, t=40, b=50),
-                                hoverlabel=dict(bgcolor="white", font_size=12),
+                                xaxis=dict(title=dict(text="Downside Capture (%)", font=dict(size=11, color=TAG_CINZA_MEDIO)),
+                                           ticksuffix="%", tickfont=dict(size=10, color=TAG_CINZA_MEDIO), gridcolor="#e8e6e0"),
+                                yaxis=dict(title=dict(text="Upside Capture (%)", font=dict(size=11, color=TAG_CINZA_MEDIO)),
+                                           ticksuffix="%", tickfont=dict(size=10, color=TAG_CINZA_MEDIO), gridcolor="#e8e6e0"),
+                                font=dict(family="Tahoma, sans-serif", color=TAG_CINZA_ESCURO),
+                                legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=11, color=TAG_CINZA_MEDIO)),
+                                margin=dict(l=50, r=16, t=40, b=50),
+                                plot_bgcolor=TAG_BRANCO, paper_bgcolor="rgba(0,0,0,0)",
+                                hoverlabel=dict(bgcolor=TAG_BRANCO, font_size=12, bordercolor=TAG_VERMELHO + "40"),
+                                hovermode="closest",
                             )
                             st.plotly_chart(fig_cap, use_container_width=True)
 
@@ -1407,12 +1532,16 @@ def main():
                         fig_scatter.add_hline(y=0, line_dash="dot", line_color="#ccc", line_width=1)
                         fig_scatter.update_layout(
                             height=480, template="plotly_white",
-                            xaxis=dict(title="Ulcer Index (risco)", zeroline=True),
-                            yaxis=dict(title="Retorno Anualizado (%)", ticksuffix="%"),
-                            font=dict(family="Tahoma, sans-serif"),
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10)),
-                            margin=dict(l=50, r=20, t=40, b=50),
-                            hoverlabel=dict(bgcolor="white", font_size=12),
+                            xaxis=dict(title=dict(text="Ulcer Index (risco)", font=dict(size=11, color=TAG_CINZA_MEDIO)),
+                                       zeroline=True, tickfont=dict(size=10, color=TAG_CINZA_MEDIO), gridcolor="#e8e6e0"),
+                            yaxis=dict(title=dict(text="Retorno Anualizado (%)", font=dict(size=11, color=TAG_CINZA_MEDIO)),
+                                       ticksuffix="%", tickfont=dict(size=10, color=TAG_CINZA_MEDIO), gridcolor="#e8e6e0"),
+                            font=dict(family="Tahoma, sans-serif", color=TAG_CINZA_ESCURO),
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=11, color=TAG_CINZA_MEDIO)),
+                            margin=dict(l=50, r=16, t=40, b=50),
+                            plot_bgcolor=TAG_BRANCO, paper_bgcolor="rgba(0,0,0,0)",
+                            hoverlabel=dict(bgcolor=TAG_BRANCO, font_size=12, bordercolor=TAG_VERMELHO + "40"),
+                            hovermode="closest",
                         )
                         st.plotly_chart(fig_scatter, use_container_width=True)
 
