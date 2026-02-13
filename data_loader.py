@@ -35,8 +35,8 @@ CVM_BLC4_ZIP_URL = "https://dados.cvm.gov.br/dados/FI/DOC/CDA/DADOS/cda_fi_BLC_4
 CVM_INF_DIARIO_URL = "https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_{yyyymm}.zip"
 
 BENCHMARK_CNPJS = {
-    "IBOVESPA (BOVA11)": "10406511000161",
-    "SMALL (SMAL11)": "10406600000108",
+    "IBOVESPA": "97543707000186",  # Blackrock Institucional Ibovespa FI Ações (passivo)
+    "SMALL CAP": "07177193000108",  # Itaú Institucional Small Cap FIC Ações
 }
 
 NS_GALGO = "http://www.sistemagalgo.com/SchemaPosicaoAtivos"
