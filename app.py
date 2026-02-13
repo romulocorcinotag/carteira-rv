@@ -1048,6 +1048,155 @@ def main():
             if fig_conc is not None:
                 st.plotly_chart(fig_conc, width="stretch")
 
+            # ─── HHI de Concentração ───
+            # Herfindahl-Hirschman Index por data: HHI = sum(w_i^2)
+            # HHI=1 = fundo inteiro num ativo; HHI→0 = muito diversificado
+            _datas_hhi = sorted(df_f["data"].unique())
+            if len(_datas_hhi) >= 2:
+                _hhi_vals = []
+                _hhi_dates = []
+                _n_ativos_hist = []
+                for _dt in _datas_hhi:
+                    _snap = df_f[df_f["data"] == _dt]
+                    _weights = _snap["pct_pl"].dropna() / 100.0
+                    _weights = _weights[_weights > 0]
+                    if len(_weights) > 0:
+                        _hhi = (_weights ** 2).sum()
+                        _hhi_vals.append(_hhi * 10000)  # escala 0-10000
+                        _hhi_dates.append(_dt)
+                        _n_ativos_hist.append(len(_weights))
+
+                if len(_hhi_vals) >= 2:
+                    fig_hhi = go.Figure()
+                    fig_hhi.add_trace(go.Scatter(
+                        x=_hhi_dates, y=_hhi_vals,
+                        mode="lines+markers",
+                        name="HHI",
+                        line=dict(width=2.5, color=TAG_CHART_COLORS[4]),
+                        marker=dict(size=5, color=TAG_CHART_COLORS[4]),
+                        hovertemplate="<b>HHI</b><br>%{x|%d/%m/%Y}: %{y:.0f}<extra></extra>",
+                    ))
+                    # Faixas de referência
+                    fig_hhi.add_hline(y=2500, line_dash="dot", line_color="#6BDE97", line_width=1,
+                                      annotation_text="Diversificado (<2500)", annotation_position="bottom right",
+                                      annotation_font_color="#6BDE97", annotation_font_size=9)
+                    fig_hhi.add_hline(y=5000, line_dash="dot", line_color="#FFBB00", line_width=1,
+                                      annotation_text="Moderado (2500-5000)", annotation_position="bottom right",
+                                      annotation_font_color="#FFBB00", annotation_font_size=9)
+                    fig_hhi.add_hline(y=7500, line_dash="dot", line_color="#FF6B6B", line_width=1,
+                                      annotation_text="Concentrado (>5000)", annotation_position="bottom right",
+                                      annotation_font_color="#FF6B6B", annotation_font_size=9)
+
+                    _chart_layout(fig_hhi, f"{nome_fundo} — Indice HHI de Concentracao",
+                                  height=350, y_title="HHI (0-10.000)", y_suffix="")
+                    st.plotly_chart(fig_hhi, use_container_width=True)
+
+                    # ─── Número de Ativos ao longo do tempo ───
+                    fig_nativos = go.Figure()
+                    fig_nativos.add_trace(go.Bar(
+                        x=_hhi_dates, y=_n_ativos_hist,
+                        name="Ativos",
+                        marker_color=_hex_to_rgba(TAG_LARANJA, 0.7),
+                        hovertemplate="<b>N. Ativos</b><br>%{x|%d/%m/%Y}: %{y}<extra></extra>",
+                    ))
+                    _chart_layout(fig_nativos, f"{nome_fundo} — Numero de Ativos na Carteira",
+                                  height=280, y_title="Qtd Ativos", y_suffix="")
+                    st.plotly_chart(fig_nativos, use_container_width=True)
+
+            # ─── Turnover da Carteira ───
+            # Mede mudanças na composição mês a mês
+            if len(_datas_hhi) >= 2:
+                _turnover_dates = []
+                _turnover_vals = []
+                _entradas_list = []
+                _saidas_list = []
+                _datas_sorted = sorted(_datas_hhi)
+                for _ti in range(1, len(_datas_sorted)):
+                    _dt_prev = _datas_sorted[_ti - 1]
+                    _dt_curr = _datas_sorted[_ti]
+
+                    _snap_prev = df_f[df_f["data"] == _dt_prev]
+                    _snap_curr = df_f[df_f["data"] == _dt_curr]
+
+                    _w_prev = dict(zip(_snap_prev["ativo"], _snap_prev["pct_pl"].fillna(0)))
+                    _w_curr = dict(zip(_snap_curr["ativo"], _snap_curr["pct_pl"].fillna(0)))
+
+                    _all_ativos = set(_w_prev.keys()) | set(_w_curr.keys())
+                    _turnover = sum(abs(_w_curr.get(a, 0) - _w_prev.get(a, 0)) for a in _all_ativos) / 2
+
+                    _entradas = set(_w_curr.keys()) - set(_w_prev.keys())
+                    _saidas = set(_w_prev.keys()) - set(_w_curr.keys())
+
+                    _turnover_dates.append(_dt_curr)
+                    _turnover_vals.append(_turnover)
+                    _entradas_list.append(len(_entradas))
+                    _saidas_list.append(len(_saidas))
+
+                if len(_turnover_vals) >= 2:
+                    fig_turn = go.Figure()
+                    fig_turn.add_trace(go.Bar(
+                        x=_turnover_dates, y=_turnover_vals,
+                        name="Turnover (% PL)",
+                        marker_color=_hex_to_rgba(CHART_RED, 0.7),
+                        hovertemplate="<b>Turnover</b><br>%{x|%d/%m/%Y}: %{y:.1f}%<extra></extra>",
+                    ))
+                    _chart_layout(fig_turn, f"{nome_fundo} — Turnover da Carteira",
+                                  height=320, y_title="Turnover (% PL)")
+                    st.plotly_chart(fig_turn, use_container_width=True)
+
+                    # Entradas e Saídas
+                    fig_es = go.Figure()
+                    fig_es.add_trace(go.Bar(
+                        x=_turnover_dates, y=_entradas_list,
+                        name="Entradas",
+                        marker_color=_hex_to_rgba("#6BDE97", 0.8),
+                        hovertemplate="<b>Entradas</b><br>%{x|%d/%m/%Y}: %{y} ativos<extra></extra>",
+                    ))
+                    fig_es.add_trace(go.Bar(
+                        x=_turnover_dates, y=[-s for s in _saidas_list],
+                        name="Saidas",
+                        marker_color=_hex_to_rgba("#FF6B6B", 0.8),
+                        hovertemplate="<b>Saidas</b><br>%{x|%d/%m/%Y}: %{customdata} ativos<extra></extra>",
+                        customdata=_saidas_list,
+                    ))
+                    _chart_layout(fig_es, f"{nome_fundo} — Entradas e Saidas de Ativos",
+                                  height=300, y_title="Qtd Ativos", y_suffix="")
+                    fig_es.update_layout(barmode="relative")
+                    st.plotly_chart(fig_es, use_container_width=True)
+
+                    # Tabela resumo do último turnover
+                    if len(_turnover_dates) >= 1:
+                        _last_dt = _datas_sorted[-1]
+                        _prev_dt = _datas_sorted[-2]
+                        _snap_last = df_f[df_f["data"] == _last_dt]
+                        _snap_prev2 = df_f[df_f["data"] == _prev_dt]
+                        _ativos_last = set(_snap_last["ativo"].tolist())
+                        _ativos_prev2 = set(_snap_prev2["ativo"].tolist())
+                        _novos = _ativos_last - _ativos_prev2
+                        _removidos = _ativos_prev2 - _ativos_last
+
+                        if _novos or _removidos:
+                            with st.expander(f"Movimentacoes: {pd.Timestamp(_prev_dt).strftime('%d/%m/%Y')} → {pd.Timestamp(_last_dt).strftime('%d/%m/%Y')}", expanded=False):
+                                _mov_cols = st.columns(2)
+                                with _mov_cols[0]:
+                                    if _novos:
+                                        st.markdown("**Entradas:**")
+                                        for _a in sorted(_novos):
+                                            _pct = _snap_last[_snap_last["ativo"] == _a]["pct_pl"].values
+                                            _pct_str = f" ({_pct[0]:.1f}%)" if len(_pct) > 0 else ""
+                                            st.markdown(f"- :green[{_a}]{_pct_str}")
+                                    else:
+                                        st.markdown("*Sem novas entradas*")
+                                with _mov_cols[1]:
+                                    if _removidos:
+                                        st.markdown("**Saidas:**")
+                                        for _a in sorted(_removidos):
+                                            _pct = _snap_prev2[_snap_prev2["ativo"] == _a]["pct_pl"].values
+                                            _pct_str = f" ({_pct[0]:.1f}%)" if len(_pct) > 0 else ""
+                                            st.markdown(f"- :red[{_a}]{_pct_str}")
+                                    else:
+                                        st.markdown("*Sem saidas*")
+
             if idx < len(fundos_sel) - 1:
                 st.markdown('<div class="tag-section-divider"></div>', unsafe_allow_html=True)
 
@@ -1452,6 +1601,109 @@ def main():
 
                 if pair_data:
                     st.dataframe(pd.DataFrame(pair_data), width="stretch", hide_index=True)
+
+            # ─── 7. HEATMAP: Correlação de Retornos entre Fundos ───
+            st.markdown('<div class="tag-section-title">Correlacao de Retornos entre Fundos</div>', unsafe_allow_html=True)
+            st.caption("Correlacao de Pearson dos retornos diarios de cotas (CVM). Valores proximos de 1 indicam fundos que se movem juntos; valores baixos indicam diversificacao.")
+
+            # Buscar cotas dos fundos selecionados + benchmarks
+            _corr_cnpjs = tuple(set([nome_cnpj_map[n] for n in nomes_comp]) | set(BENCHMARK_CNPJS.values()))
+            _df_cotas_corr = carregar_cotas_fundos(_corr_cnpjs, meses=36)
+
+            if _df_cotas_corr.empty:
+                st.info("Sem dados de cotas para calcular correlacoes.")
+            else:
+                _pivot_q = _df_cotas_corr.pivot_table(index="data", columns="cnpj_fundo", values="vl_quota")
+                _pivot_q = _pivot_q.sort_index().ffill()
+                _pivot_r = _pivot_q.pct_change().dropna(how="all")
+
+                # Mapear CNPJ -> label curto
+                _corr_labels = {}
+                for nm in nomes_comp:
+                    cnpj = nome_cnpj_map[nm]
+                    parts = nm.split()
+                    short = " ".join(parts[:3]) if len(parts) > 3 else nm
+                    if len(short) > 25:
+                        short = short[:22] + "..."
+                    _corr_labels[cnpj] = short
+                for cnpj, name in {v: k for k, v in BENCHMARK_CNPJS.items()}.items():
+                    _corr_labels[cnpj] = name
+
+                _corr_cols = [nome_cnpj_map[n] for n in nomes_comp if nome_cnpj_map[n] in _pivot_r.columns]
+                _corr_bench = [c for c in BENCHMARK_CNPJS.values() if c in _pivot_r.columns]
+                _corr_all = _corr_cols + _corr_bench
+
+                if len(_corr_all) >= 2:
+                    _corr_matrix = _pivot_r[_corr_all].corr()
+                    _corr_labels_list = [_corr_labels.get(c, c[:10]) for c in _corr_all]
+
+                    # Texto anotado na matrix
+                    _corr_text = [[f"{_corr_matrix.iloc[i, j]:.2f}" for j in range(len(_corr_all))] for i in range(len(_corr_all))]
+
+                    fig_corr = go.Figure(data=go.Heatmap(
+                        z=_corr_matrix.values,
+                        x=_corr_labels_list,
+                        y=_corr_labels_list,
+                        text=_corr_text,
+                        texttemplate="%{text}",
+                        textfont=dict(size=11, color=TAG_BRANCO),
+                        colorscale=[
+                            [0.0, "#1a1a2e"],
+                            [0.3, "#16213e"],
+                            [0.5, "#0f3460"],
+                            [0.7, "#e94560"],
+                            [1.0, "#FF8853"],
+                        ],
+                        zmin=0, zmax=1,
+                        colorbar=dict(
+                            title=dict(text="Correlacao", font=dict(size=10, color=DARK_TEXT_MUTED)),
+                            tickfont=dict(size=9, color=DARK_TEXT_MUTED),
+                            bgcolor="rgba(0,0,0,0)",
+                        ),
+                        hovertemplate="<b>%{x}</b> × <b>%{y}</b><br>Correlacao: %{z:.3f}<extra></extra>",
+                    ))
+
+                    fig_corr.update_layout(
+                        height=max(400, 60 * len(_corr_all)),
+                        plot_bgcolor="rgba(0,0,0,0)",
+                        paper_bgcolor="rgba(0,0,0,0)",
+                        font=dict(family="Inter, sans-serif", color=DARK_TEXT),
+                        xaxis=dict(tickfont=dict(size=9, color=DARK_TEXT_MUTED), side="bottom"),
+                        yaxis=dict(tickfont=dict(size=9, color=DARK_TEXT_MUTED), autorange="reversed"),
+                        margin=dict(l=120, r=50, t=30, b=120),
+                        hoverlabel=dict(bgcolor=DARK_SURFACE, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
+                    )
+                    st.plotly_chart(fig_corr, use_container_width=True)
+
+                    # ─── 8. Correlacao Rolling (janela 63du = 3 meses) ───
+                    st.markdown('<div class="tag-section-title">Correlacao Rolling vs IBOVESPA (63 du)</div>', unsafe_allow_html=True)
+                    st.caption("Correlacao movel de 63 dias uteis (~3 meses) entre cada fundo e o IBOVESPA. Queda na correlacao pode indicar mudanca de estrategia ou diversificacao.")
+
+                    _ibov_cnpj_corr = list(BENCHMARK_CNPJS.values())[0]
+                    if _ibov_cnpj_corr in _pivot_r.columns:
+                        _ibov_r_corr = _pivot_r[_ibov_cnpj_corr].dropna()
+                        fig_rcorr = go.Figure()
+                        for i, cnpj in enumerate(_corr_cols):
+                            _fr = _pivot_r[cnpj].dropna()
+                            _common_idx = _fr.index.intersection(_ibov_r_corr.index)
+                            if len(_common_idx) < 63:
+                                continue
+                            _roll_corr = _fr.loc[_common_idx].rolling(63).corr(_ibov_r_corr.loc[_common_idx]).dropna()
+                            label = _corr_labels.get(cnpj, cnpj[:10])
+                            fig_rcorr.add_trace(go.Scatter(
+                                x=_roll_corr.index, y=_roll_corr.values,
+                                name=label, mode="lines",
+                                line=dict(width=2, color=TAG_CHART_COLORS[i % len(TAG_CHART_COLORS)]),
+                                hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}: %{{y:.3f}}<extra></extra>",
+                            ))
+
+                        fig_rcorr.add_hline(y=1.0, line_dash="dot", line_color="#555", line_width=0.5)
+                        fig_rcorr.add_hline(y=0.5, line_dash="dot", line_color="#555", line_width=0.5)
+                        fig_rcorr.add_hline(y=0.0, line_dash="dot", line_color="#888", line_width=1)
+                        _chart_layout(fig_rcorr, "", height=400, y_title="Correlacao", y_suffix="")
+                        st.plotly_chart(fig_rcorr, use_container_width=True)
+                else:
+                    st.info("Selecione ao menos 2 fundos com dados de cotas para ver a correlacao.")
 
 
     # ══════════════════════════════════════════════════════════════════════
@@ -1891,8 +2143,9 @@ def main():
                         )
                         st.plotly_chart(fig_scatter, use_container_width=True)
 
-                    # ─── G8: Tabela de Métricas Completa ───
+                    # ─── G8: Tabela de Métricas Completa (expandida) ───
                     st.markdown('<div class="tag-section-title">Metricas de Performance e Gestao</div>', unsafe_allow_html=True)
+                    st.caption("Sortino = retorno exc./vol. queda | Treynor = retorno exc./beta | M² = retorno ajustado ao risco do mercado | Omega = ganhos/perdas vs CDI | VaR/CVaR = risco de cauda 95% | Recup.DD = dias para recuperar do pior drawdown | Consist. = % janelas 12M que bateu IBOV")
 
                     metrics_rows = []
                     for cnpj in all_cols:
@@ -1913,10 +2166,36 @@ def main():
                         max_dd = dd.min()
                         ulcer = np.sqrt((dd ** 2).mean())
                         calmar = ret_anual / abs(max_dd / 100) if max_dd != 0 else 0
-                        pain = dd[dd < 0].abs().mean() if (dd < 0).any() else 0
 
-                        # Métricas vs benchmark (IBOV)
+                        # ── Sortino (downside deviation) ──
+                        excess_daily = ret - cdi_diario
+                        downside = excess_daily[excess_daily < 0]
+                        downside_dev = np.sqrt((downside ** 2).mean()) * np.sqrt(252) if len(downside) > 0 else 0
+                        sortino = (ret_anual - CDI_ANUAL) / downside_dev if downside_dev > 0 else 0
+
+                        # ── VaR 95% e CVaR (Expected Shortfall) ──
+                        var_95 = np.nanpercentile(ret, 5) * 100  # 5º percentil = VaR 95%
+                        cvar_95 = ret[ret <= np.nanpercentile(ret, 5)].mean() * 100 if len(ret[ret <= np.nanpercentile(ret, 5)]) > 0 else var_95
+
+                        # ── Tempo de recuperação do drawdown (dias) ──
+                        dd_decimal = cum / cum.cummax() - 1
+                        underwater = dd_decimal < -0.001  # tolerância 0.1%
+                        if underwater.any():
+                            # Encontrar períodos de drawdown
+                            dd_groups = (~underwater).cumsum()
+                            dd_durations = underwater.groupby(dd_groups).sum()
+                            max_recovery_days = int(dd_durations.max()) if len(dd_durations) > 0 else 0
+                        else:
+                            max_recovery_days = 0
+
+                        # ── Omega Ratio (ganhos/perdas vs CDI diário) ──
+                        gains = excess_daily[excess_daily > 0].sum()
+                        losses = excess_daily[excess_daily < 0].abs().sum()
+                        omega = gains / losses if losses > 0 else 0
+
+                        # ── Métricas vs benchmark (IBOV) ──
                         ir, hit_rate, up_cap, down_cap = np.nan, np.nan, np.nan, np.nan
+                        beta_val, treynor, m2_val, consist_pct = np.nan, np.nan, np.nan, np.nan
                         if ibov_cnpj in pivot_ret.columns and cnpj != ibov_cnpj:
                             bench_r = pivot_ret[ibov_cnpj].reindex(ret.index).dropna()
                             common_idx = ret.index.intersection(bench_r.index)
@@ -1926,7 +2205,21 @@ def main():
                                 active = fr - br
                                 te = active.std() * np.sqrt(252)
                                 ir = active.mean() * 252 / te if te > 0 else 0
-                                # Monthly hit rate
+
+                                # ── Beta e Treynor ──
+                                cov_fb = np.cov(fr - cdi_diario, br - cdi_diario)[0, 1]
+                                var_b = np.var(br - cdi_diario)
+                                beta_val = cov_fb / var_b if var_b > 0 else 1.0
+                                treynor = (ret_anual - CDI_ANUAL) / beta_val if beta_val != 0 else 0
+
+                                # ── M² (Modigliani) ──
+                                vol_bench = br.std() * np.sqrt(252)
+                                if vol_anual > 0:
+                                    m2_val = (sharpe * vol_bench + CDI_ANUAL) * 100  # em %
+                                else:
+                                    m2_val = CDI_ANUAL * 100
+
+                                # Monthly hit rate & capture
                                 monthly_f = fr.resample("ME").apply(lambda x: (1 + x).prod() - 1)
                                 monthly_b = br.resample("ME").apply(lambda x: (1 + x).prod() - 1)
                                 common_m = monthly_f.dropna().index.intersection(monthly_b.dropna().index)
@@ -1939,7 +2232,15 @@ def main():
                                     if down_m.sum() > 2:
                                         down_cap = monthly_f.loc[common_m][down_m].mean() / monthly_b.loc[common_m][down_m].mean() * 100
 
-                        # UPI vs IBOV: (excess return) / ulcer index
+                                # ── Consistência: % de janelas rolling 252d que bateu IBOV ──
+                                if len(common_idx) >= 252:
+                                    roll_f = fr.rolling(252).apply(lambda x: (1 + x).prod() - 1, raw=False)
+                                    roll_b = br.rolling(252).apply(lambda x: (1 + x).prod() - 1, raw=False)
+                                    valid = roll_f.dropna().index.intersection(roll_b.dropna().index)
+                                    if len(valid) > 20:
+                                        consist_pct = (roll_f.loc[valid] > roll_b.loc[valid]).sum() / len(valid) * 100
+
+                        # UPI vs IBOV
                         upi_vs_ibov = np.nan
                         if ibov_cnpj in pivot_ret.columns and cnpj != ibov_cnpj:
                             excess_total = ret_anual - ((1 + pivot_ret[ibov_cnpj].dropna()).prod() ** (252 / max(1, len(pivot_ret[ibov_cnpj].dropna()))) - 1)
@@ -1953,18 +2254,28 @@ def main():
                             "Ret.Anual": f"{ret_anual*100:.1f}%",
                             "Vol.Anual": f"{vol_anual*100:.1f}%",
                             "Sharpe": f"{sharpe:.2f}",
+                            "Sortino": f"{sortino:.2f}",
                             "Max DD": f"{max_dd:.1f}%",
+                            "Recup.DD": f"{max_recovery_days}d",
                             "Calmar": f"{calmar:.2f}",
                             "Ulcer": f"{ulcer:.1f}",
+                            "VaR 95%": f"{var_95:.2f}%",
+                            "CVaR": f"{cvar_95:.2f}%",
+                            "Omega": f"{omega:.2f}",
                             "UPI vs IBOV": f"{upi_vs_ibov:.2f}" if pd.notna(upi_vs_ibov) else "—",
                         }
                         if pd.notna(ir):
+                            row_data["Beta"] = f"{beta_val:.2f}" if pd.notna(beta_val) else "—"
+                            row_data["Treynor"] = f"{treynor:.2f}" if pd.notna(treynor) else "—"
+                            row_data["M²"] = f"{m2_val:.1f}%" if pd.notna(m2_val) else "—"
                             row_data["IR"] = f"{ir:.2f}"
                             row_data["Hit%"] = f"{hit_rate:.0f}%" if pd.notna(hit_rate) else "—"
+                            row_data["Consist."] = f"{consist_pct:.0f}%" if pd.notna(consist_pct) else "—"
                             row_data["Up Cap"] = f"{up_cap:.0f}%" if pd.notna(up_cap) else "—"
                             row_data["Dn Cap"] = f"{down_cap:.0f}%" if pd.notna(down_cap) else "—"
                         else:
-                            row_data.update({"IR": "—", "Hit%": "—", "Up Cap": "—", "Dn Cap": "—"})
+                            row_data.update({"Beta": "—", "Treynor": "—", "M²": "—", "IR": "—",
+                                             "Hit%": "—", "Consist.": "—", "Up Cap": "—", "Dn Cap": "—"})
                         metrics_rows.append(row_data)
 
                     if metrics_rows:
@@ -2072,6 +2383,118 @@ def main():
                         fig_upi.add_hline(y=0, line_dash="dot", line_color="#ccc", line_width=1)
                         _chart_layout(fig_upi, "", height=400, y_title="UPI vs IBOV", y_suffix="")
                         st.plotly_chart(fig_upi, use_container_width=True)
+
+                    # ─── G11: Beta Rolling vs IBOVESPA ───
+                    st.markdown(f'<div class="tag-section-title">Beta Rolling vs IBOVESPA — Janela {janela_label}</div>', unsafe_allow_html=True)
+                    st.caption("Beta mede a sensibilidade ao mercado. Beta > 1 = amplifica o mercado. Beta < 1 = mais defensivo. Mostra se o gestor está aumentando ou diminuindo exposição.")
+
+                    if ibov_cnpj in pivot_ret.columns:
+                        fig_beta = go.Figure()
+                        bench_r_full = pivot_ret[ibov_cnpj]
+                        for i, cnpj in enumerate(fund_cols):
+                            if cnpj not in pivot_ret.columns:
+                                continue
+                            label = cnpj_to_label.get(cnpj, cnpj[:10])
+                            fund_r = pivot_ret[cnpj]
+                            # Rolling beta: cov(fund, bench) / var(bench)
+                            roll_cov = fund_r.rolling(janela_du).cov(bench_r_full)
+                            roll_var = bench_r_full.rolling(janela_du).var()
+                            roll_beta = (roll_cov / roll_var).dropna()
+                            roll_beta = roll_beta.clip(0, 3)  # clip extremos
+                            fig_beta.add_trace(go.Scatter(
+                                x=roll_beta.index, y=roll_beta.values,
+                                name=label, mode="lines",
+                                line=dict(width=2, color=TAG_CHART_COLORS[i % len(TAG_CHART_COLORS)]),
+                                hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}<br>Beta: %{{y:.2f}}<extra></extra>",
+                            ))
+                        for cnpj in bench_cols:
+                            if cnpj == ibov_cnpj or cnpj not in pivot_ret.columns:
+                                continue
+                            label = cnpj_to_label.get(cnpj, cnpj[:10])
+                            style = bench_styles.get(cnpj, dict(color="#999", dash="dash"))
+                            roll_cov = pivot_ret[cnpj].rolling(janela_du).cov(bench_r_full)
+                            roll_var = bench_r_full.rolling(janela_du).var()
+                            roll_beta = (roll_cov / roll_var).dropna().clip(0, 3)
+                            fig_beta.add_trace(go.Scatter(
+                                x=roll_beta.index, y=roll_beta.values,
+                                name=label, mode="lines",
+                                line=dict(width=1.5, **style),
+                                hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}<br>Beta: %{{y:.2f}}<extra></extra>",
+                            ))
+                        fig_beta.add_hline(y=1, line_dash="dot", line_color="#ccc", line_width=1,
+                                           annotation_text="Beta = 1", annotation_position="top left",
+                                           annotation_font_color=DARK_TEXT_MUTED)
+                        _chart_layout(fig_beta, "", height=400, y_title="Beta vs IBOV", y_suffix="")
+                        st.plotly_chart(fig_beta, use_container_width=True)
+
+                    # ─── G12: Performance por Regime de Mercado ───
+                    st.markdown('<div class="tag-section-title">Performance por Regime de Mercado</div>', unsafe_allow_html=True)
+                    st.caption("Retorno medio mensal dos fundos em meses BULL (IBOV > 0) e BEAR (IBOV < 0). Mostra se o fundo protege na queda ou so vai bem na alta.")
+
+                    if ibov_cnpj in pivot_ret.columns:
+                        # Calcular retornos mensais
+                        monthly_all = pivot_ret[all_cols].resample("ME").apply(lambda x: (1 + x).prod() - 1)
+                        monthly_ibov = monthly_all[ibov_cnpj].dropna() if ibov_cnpj in monthly_all.columns else pd.Series(dtype=float)
+
+                        if len(monthly_ibov) > 6:
+                            bull_months = monthly_ibov > 0
+                            bear_months = monthly_ibov < 0
+
+                            regime_data = []
+                            for cnpj in all_cols:
+                                if cnpj not in monthly_all.columns:
+                                    continue
+                                m_ret = monthly_all[cnpj].dropna()
+                                common_m = m_ret.index.intersection(monthly_ibov.index)
+                                if len(common_m) < 6:
+                                    continue
+                                m_ret_c = m_ret.loc[common_m]
+                                bull_ret = m_ret_c[bull_months.reindex(common_m, fill_value=False)].mean() * 100
+                                bear_ret = m_ret_c[bear_months.reindex(common_m, fill_value=False)].mean() * 100
+                                n_bull = bull_months.reindex(common_m, fill_value=False).sum()
+                                n_bear = bear_months.reindex(common_m, fill_value=False).sum()
+                                regime_data.append({
+                                    "cnpj": cnpj,
+                                    "label": cnpj_to_label.get(cnpj, cnpj[:10]),
+                                    "bull": bull_ret, "bear": bear_ret,
+                                    "is_fund": cnpj in fund_cols, "is_bench": cnpj in bench_cols,
+                                })
+
+                            if regime_data:
+                                df_regime = pd.DataFrame(regime_data)
+                                fig_regime = go.Figure()
+                                for idx_r, row_r in df_regime.iterrows():
+                                    if row_r["is_fund"]:
+                                        color = TAG_CHART_COLORS[list(df_regime[df_regime["is_fund"]].index).index(idx_r) % len(TAG_CHART_COLORS)]
+                                        size = 16
+                                    elif row_r["is_bench"]:
+                                        color = bench_styles.get(row_r["cnpj"], {}).get("color", "#999")
+                                        size = 14
+                                    else:
+                                        continue
+                                    fig_regime.add_trace(go.Scatter(
+                                        x=[row_r["bear"]], y=[row_r["bull"]],
+                                        mode="markers+text", name=row_r["label"],
+                                        marker=dict(symbol="star", size=size, color=color,
+                                                    line=dict(width=1, color="white")),
+                                        text=[row_r["label"]], textposition="top center",
+                                        textfont=dict(size=9),
+                                        hovertemplate=f"<b>{row_r['label']}</b><br>Bull: {row_r['bull']:.2f}%/mes<br>Bear: {row_r['bear']:.2f}%/mes<extra></extra>",
+                                    ))
+                                fig_regime.update_layout(
+                                    height=480, template="plotly_dark",
+                                    xaxis=dict(title=dict(text="Ret. Medio Mensal BEAR (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                               ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor=CHART_GRID),
+                                    yaxis=dict(title=dict(text="Ret. Medio Mensal BULL (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                               ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor=CHART_GRID),
+                                    font=dict(family="Inter, sans-serif", color=DARK_TEXT),
+                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                    margin=dict(l=50, r=16, t=40, b=50),
+                                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                                    hoverlabel=dict(bgcolor=DARK_SURFACE, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
+                                    hovermode="closest",
+                                )
+                                st.plotly_chart(fig_regime, use_container_width=True)
 
     # ══════════════════════════════════════════════════════════════════════
     # TAB 6: DESTAQUES (Rankings multi-janela — inspirado relatório RV Long Only)
