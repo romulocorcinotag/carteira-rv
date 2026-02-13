@@ -315,20 +315,41 @@ def inject_css():
 
         /* ── Dropdown / Popover menus ── */
         [data-baseweb="popover"] {{
-            background: {DARK_SURFACE} !important;
-            border: 1px solid {DARK_BORDER} !important;
+            background: {DARK_SURFACE_2} !important;
+            border: 1px solid #4A4A60 !important;
         }}
         [data-baseweb="menu"] {{
-            background: {DARK_SURFACE} !important;
-        }}
-        [role="option"] {{
-            color: {DARK_TEXT} !important;
-        }}
-        [role="option"]:hover {{
             background: {DARK_SURFACE_2} !important;
         }}
-        [aria-selected="true"][role="option"] {{
-            background: {TAG_VERMELHO}30 !important;
+        [data-baseweb="menu"] li,
+        [data-baseweb="menu"] [role="option"],
+        [role="option"],
+        [role="listbox"] li,
+        [data-baseweb="menu"] li *,
+        [role="option"] *,
+        [role="option"] span,
+        [role="option"] div {{
+            color: #FFFFFF !important;
+            -webkit-text-fill-color: #FFFFFF !important;
+            background-color: transparent !important;
+        }}
+        [role="option"]:hover,
+        [data-baseweb="menu"] li:hover {{
+            background: #2A2A40 !important;
+            background-color: #2A2A40 !important;
+        }}
+        [aria-selected="true"][role="option"],
+        [aria-selected="true"][role="option"] * {{
+            background: {TAG_VERMELHO}40 !important;
+            background-color: {TAG_VERMELHO}40 !important;
+            color: #FFFFFF !important;
+            -webkit-text-fill-color: #FFFFFF !important;
+        }}
+        /* Highlighted (focused) option in dropdown */
+        [data-baseweb="menu"] li[aria-selected="true"],
+        [data-baseweb="menu"] li[data-highlighted="true"],
+        [data-baseweb="menu"] li[class*="highlighted"] {{
+            background: #2A2A40 !important;
         }}
         /* Calendar */
         [data-baseweb="calendar"], [data-baseweb="calendar"] div {{
@@ -495,7 +516,7 @@ def inject_css():
     st.html("""
     <script>
     function fixFilterColors() {
-        // Labels dos widgets
+        // 1. Labels dos widgets
         document.querySelectorAll('[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span, [data-testid="stWidgetLabel"] label').forEach(el => {
             el.style.setProperty('color', '#FFFFFF', 'important');
             el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
@@ -503,7 +524,7 @@ def inject_css():
             el.style.setProperty('font-size', '12px', 'important');
             el.style.setProperty('opacity', '1', 'important');
         });
-        // Texto selecionado dentro dos selects
+        // 2. Texto selecionado dentro dos selects
         document.querySelectorAll('[data-baseweb="select"] span, [data-baseweb="select"] div[class*="Value"], [data-baseweb="select"] [class*="singleValue"], [data-baseweb="select"] [class*="placeholder"]').forEach(el => {
             if (!el.closest('svg') && !el.querySelector('svg')) {
                 el.style.setProperty('color', '#FFFFFF', 'important');
@@ -511,23 +532,31 @@ def inject_css():
                 el.style.setProperty('opacity', '1', 'important');
             }
         });
-        // Background dos containers de select
+        // 3. Background dos containers de select
         document.querySelectorAll('[data-baseweb="select"], [data-baseweb="select"] > div').forEach(el => {
             el.style.setProperty('background-color', '#12121A', 'important');
             el.style.setProperty('border-color', '#3A3A50', 'important');
         });
+        // 4. DROPDOWN ABERTO — opções do menu
+        document.querySelectorAll('[role="option"], [data-baseweb="menu"] li, [role="listbox"] li').forEach(el => {
+            el.style.setProperty('color', '#FFFFFF', 'important');
+            el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
+            el.querySelectorAll('*').forEach(child => {
+                child.style.setProperty('color', '#FFFFFF', 'important');
+                child.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
+            });
+        });
+        // 5. Menu/popover background
+        document.querySelectorAll('[data-baseweb="menu"], [data-baseweb="popover"], [data-baseweb="popover"] > div, [data-baseweb="menu"] ul, [role="listbox"]').forEach(el => {
+            el.style.setProperty('background-color', '#1A1A25', 'important');
+            el.style.setProperty('background', '#1A1A25', 'important');
+        });
     }
-    // Executar imediatamente e depois a cada 500ms por 10s (cobre re-renders do Streamlit)
     fixFilterColors();
     let runs = 0;
-    const interval = setInterval(() => {
-        fixFilterColors();
-        runs++;
-        if (runs > 20) clearInterval(interval);
-    }, 500);
-    // Também observar mudanças no DOM
-    const observer = new MutationObserver(() => fixFilterColors());
-    observer.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class']});
+    const interval = setInterval(() => { fixFilterColors(); runs++; if (runs > 50) clearInterval(interval); }, 300);
+    const observer = new MutationObserver(() => { setTimeout(fixFilterColors, 30); });
+    observer.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style','class']});
     </script>
     """)
 
