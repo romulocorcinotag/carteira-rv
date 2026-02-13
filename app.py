@@ -2077,7 +2077,29 @@ def main():
     # TAB 6: DESTAQUES (Rankings multi-janela — inspirado relatório RV Long Only)
     # ══════════════════════════════════════════════════════════════════════
     with tab_destaques:
-        all_cnpjs_destaques = tuple(set(df_fundos["cnpj_norm"].dropna().tolist()))
+        # ── Filtros de Categoria e Tier para Destaques ──
+        col_dest_cat, col_dest_tier = st.columns(2)
+        with col_dest_cat:
+            dest_categorias = sorted(df_fundos["categoria"].dropna().unique().tolist())
+            dest_cat_sel = st.multiselect(
+                "Categoria", options=dest_categorias, default=[],
+                key="dest_cat_filter"
+            )
+        with col_dest_tier:
+            dest_tiers = sorted(df_fundos["tier"].dropna().unique().tolist())
+            dest_tier_sel = st.multiselect(
+                "Tier", options=dest_tiers, default=[],
+                key="dest_tier_filter"
+            )
+
+        # Aplicar filtros ao universo de fundos
+        df_fundos_dest = df_fundos.copy()
+        if dest_cat_sel:
+            df_fundos_dest = df_fundos_dest[df_fundos_dest["categoria"].isin(dest_cat_sel)]
+        if dest_tier_sel:
+            df_fundos_dest = df_fundos_dest[df_fundos_dest["tier"].isin(dest_tier_sel)]
+
+        all_cnpjs_destaques = tuple(set(df_fundos_dest["cnpj_norm"].dropna().tolist()))
         df_cotas_all = carregar_cotas_fundos(
             tuple(set(all_cnpjs_destaques) | set(BENCHMARK_CNPJS.values())), meses=120
         )
@@ -2172,7 +2194,12 @@ def main():
 
                     # ── 1. Resumo do Universo ──
                     st.markdown('<div class="tag-section-title">Desempenho do Universo de Fundos RV</div>', unsafe_allow_html=True)
-                    st.caption(f"Amostra de {len(df_funds_only)} fundos de acoes. Data ref: {max_date.strftime('%d/%m/%Y')}.")
+                    filtro_desc = ""
+                    if dest_cat_sel:
+                        filtro_desc += f" | Cat: {', '.join(dest_cat_sel)}"
+                    if dest_tier_sel:
+                        filtro_desc += f" | Tier: {', '.join(dest_tier_sel)}"
+                    st.caption(f"Amostra de {len(df_funds_only)} fundos de acoes. Data ref: {max_date.strftime('%d/%m/%Y')}.{filtro_desc}")
 
                     # Tabela de resumo (tipo o PDF)
                     summary_rows = []
