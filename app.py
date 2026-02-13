@@ -491,6 +491,46 @@ def inject_css():
     </style>
     """, unsafe_allow_html=True)
 
+    # JavaScript para forçar visibilidade dos filtros (override de estilos inline do Streamlit)
+    st.html("""
+    <script>
+    function fixFilterColors() {
+        // Labels dos widgets
+        document.querySelectorAll('[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span, [data-testid="stWidgetLabel"] label').forEach(el => {
+            el.style.setProperty('color', '#FFFFFF', 'important');
+            el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
+            el.style.setProperty('font-weight', '700', 'important');
+            el.style.setProperty('font-size', '12px', 'important');
+            el.style.setProperty('opacity', '1', 'important');
+        });
+        // Texto selecionado dentro dos selects
+        document.querySelectorAll('[data-baseweb="select"] span, [data-baseweb="select"] div[class*="Value"], [data-baseweb="select"] [class*="singleValue"], [data-baseweb="select"] [class*="placeholder"]').forEach(el => {
+            if (!el.closest('svg') && !el.querySelector('svg')) {
+                el.style.setProperty('color', '#FFFFFF', 'important');
+                el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
+                el.style.setProperty('opacity', '1', 'important');
+            }
+        });
+        // Background dos containers de select
+        document.querySelectorAll('[data-baseweb="select"], [data-baseweb="select"] > div').forEach(el => {
+            el.style.setProperty('background-color', '#12121A', 'important');
+            el.style.setProperty('border-color', '#3A3A50', 'important');
+        });
+    }
+    // Executar imediatamente e depois a cada 500ms por 10s (cobre re-renders do Streamlit)
+    fixFilterColors();
+    let runs = 0;
+    const interval = setInterval(() => {
+        fixFilterColors();
+        runs++;
+        if (runs > 20) clearInterval(interval);
+    }, 500);
+    // Também observar mudanças no DOM
+    const observer = new MutationObserver(() => fixFilterColors());
+    observer.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style', 'class']});
+    </script>
+    """)
+
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Header
