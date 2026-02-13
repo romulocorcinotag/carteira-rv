@@ -316,10 +316,24 @@ def inject_css():
         /* ── Dropdown / Popover menus ── */
         [data-baseweb="popover"] {{
             background: {DARK_SURFACE_2} !important;
+            background-color: {DARK_SURFACE_2} !important;
             border: 1px solid #4A4A60 !important;
+        }}
+        [data-baseweb="popover"] > div,
+        [data-baseweb="popover"] > div > div {{
+            background: {DARK_SURFACE_2} !important;
+            background-color: {DARK_SURFACE_2} !important;
         }}
         [data-baseweb="menu"] {{
             background: {DARK_SURFACE_2} !important;
+            background-color: {DARK_SURFACE_2} !important;
+        }}
+        /* Selectbox dropdown UL (Streamlit virtual dropdown) */
+        [data-testid="stSelectboxVirtualDropdown"],
+        [data-testid="stSelectboxVirtualDropdown"] ul,
+        [data-baseweb="popover"] ul {{
+            background: {DARK_SURFACE_2} !important;
+            background-color: {DARK_SURFACE_2} !important;
         }}
         [data-baseweb="menu"] li,
         [data-baseweb="menu"] [role="option"],
@@ -328,13 +342,16 @@ def inject_css():
         [data-baseweb="menu"] li *,
         [role="option"] *,
         [role="option"] span,
-        [role="option"] div {{
+        [role="option"] div,
+        [data-testid="stSelectboxVirtualDropdown"] li,
+        [data-testid="stSelectboxVirtualDropdown"] li * {{
             color: #FFFFFF !important;
             -webkit-text-fill-color: #FFFFFF !important;
             background-color: transparent !important;
         }}
         [role="option"]:hover,
-        [data-baseweb="menu"] li:hover {{
+        [data-baseweb="menu"] li:hover,
+        [data-testid="stSelectboxVirtualDropdown"] li:hover {{
             background: #2A2A40 !important;
             background-color: #2A2A40 !important;
         }}
@@ -512,53 +529,41 @@ def inject_css():
     </style>
     """, unsafe_allow_html=True)
 
-    # JavaScript para forçar visibilidade dos filtros (override de estilos inline do Streamlit)
-    st.html("""
+    # JavaScript no iframe principal para forçar estilos inline do Streamlit
+    # IMPORTANTE: st.markdown roda dentro do iframe do Streamlit (ao contrário de st.html)
+    st.markdown("""
     <script>
     function fixFilterColors() {
-        // 1. Labels dos widgets
-        document.querySelectorAll('[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span, [data-testid="stWidgetLabel"] label').forEach(el => {
+        // Labels
+        document.querySelectorAll('[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span').forEach(function(el) {
             el.style.setProperty('color', '#FFFFFF', 'important');
             el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
             el.style.setProperty('font-weight', '700', 'important');
-            el.style.setProperty('font-size', '12px', 'important');
-            el.style.setProperty('opacity', '1', 'important');
         });
-        // 2. Texto selecionado dentro dos selects
-        document.querySelectorAll('[data-baseweb="select"] span, [data-baseweb="select"] div[class*="Value"], [data-baseweb="select"] [class*="singleValue"], [data-baseweb="select"] [class*="placeholder"]').forEach(el => {
+        // Texto selecionado dentro dos selects
+        document.querySelectorAll('[data-baseweb="select"] span, [data-baseweb="select"] div').forEach(function(el) {
             if (!el.closest('svg') && !el.querySelector('svg')) {
                 el.style.setProperty('color', '#FFFFFF', 'important');
                 el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
-                el.style.setProperty('opacity', '1', 'important');
             }
         });
-        // 3. Background dos containers de select
-        document.querySelectorAll('[data-baseweb="select"], [data-baseweb="select"] > div').forEach(el => {
-            el.style.setProperty('background-color', '#12121A', 'important');
-            el.style.setProperty('border-color', '#3A3A50', 'important');
-        });
-        // 4. DROPDOWN ABERTO — opções do menu
-        document.querySelectorAll('[role="option"], [data-baseweb="menu"] li, [role="listbox"] li').forEach(el => {
-            el.style.setProperty('color', '#FFFFFF', 'important');
-            el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
-            el.querySelectorAll('*').forEach(child => {
-                child.style.setProperty('color', '#FFFFFF', 'important');
-                child.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
-            });
-        });
-        // 5. Menu/popover background
-        document.querySelectorAll('[data-baseweb="menu"], [data-baseweb="popover"], [data-baseweb="popover"] > div, [data-baseweb="menu"] ul, [role="listbox"]').forEach(el => {
+        // DROPDOWN: fundo escuro no UL e containers
+        document.querySelectorAll('[data-testid="stSelectboxVirtualDropdown"], [data-baseweb="popover"] ul, [data-baseweb="popover"] > div, [data-baseweb="popover"] > div > div').forEach(function(el) {
             el.style.setProperty('background-color', '#1A1A25', 'important');
             el.style.setProperty('background', '#1A1A25', 'important');
         });
+        // Opções do dropdown: texto branco
+        document.querySelectorAll('[role="option"], [role="option"] div, [role="option"] span').forEach(function(el) {
+            el.style.setProperty('color', '#FFFFFF', 'important');
+            el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
+        });
     }
     fixFilterColors();
-    let runs = 0;
-    const interval = setInterval(() => { fixFilterColors(); runs++; if (runs > 50) clearInterval(interval); }, 300);
-    const observer = new MutationObserver(() => { setTimeout(fixFilterColors, 30); });
-    observer.observe(document.body, {childList: true, subtree: true, attributes: true, attributeFilter: ['style','class']});
+    var __fRuns = 0;
+    var __fInterval = setInterval(function() { fixFilterColors(); __fRuns++; if (__fRuns > 60) clearInterval(__fInterval); }, 300);
+    new MutationObserver(function() { setTimeout(fixFilterColors, 30); }).observe(document.body, {childList: true, subtree: true});
     </script>
-    """)
+    """, unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
