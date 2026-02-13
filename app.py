@@ -223,7 +223,7 @@ def inject_css():
             letter-spacing: 0.5px !important; font-weight: 600 !important;
         }}
 
-        /* --- Container do select/multiselect — forçar dark bg --- */
+        /* --- Container do select/multiselect — flush com fundo --- */
         .stSelectbox > div > div,
         .stMultiSelect > div > div,
         .stDateInput > div > div,
@@ -231,9 +231,9 @@ def inject_css():
         .stMultiSelect [data-baseweb="select"],
         [data-baseweb="select"],
         [data-baseweb="select"] > div {{
-            background: {DARK_SURFACE} !important;
-            background-color: {DARK_SURFACE} !important;
-            border-color: {DARK_BORDER} !important;
+            background: {DARK_BG} !important;
+            background-color: {DARK_BG} !important;
+            border: 1px solid {DARK_BORDER} !important;
             border-radius: 8px !important;
             color: {DARK_TEXT} !important;
         }}
@@ -270,12 +270,12 @@ def inject_css():
         .stDateInput input, .stNumberInput input, .stTextInput input {{
             color: {DARK_TEXT} !important;
             -webkit-text-fill-color: {DARK_TEXT} !important;
-            background: {DARK_SURFACE} !important;
+            background: {DARK_BG} !important;
         }}
         .stApp input, .stApp select, .stApp textarea {{
             color: {DARK_TEXT} !important;
             -webkit-text-fill-color: {DARK_TEXT} !important;
-            background-color: {DARK_SURFACE} !important;
+            background-color: {DARK_BG} !important;
         }}
 
         /* --- Dropdown arrow / icons --- */
