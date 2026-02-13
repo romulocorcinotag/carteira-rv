@@ -2198,7 +2198,7 @@ def main():
                     if dest_cat_sel:
                         filtro_desc += f" | Cat: {', '.join(dest_cat_sel)}"
                     if dest_tier_sel:
-                        filtro_desc += f" | Tier: {', '.join(dest_tier_sel)}"
+                        filtro_desc += f" | Tier: {', '.join(str(t) for t in dest_tier_sel)}"
                     st.caption(f"Amostra de {len(df_funds_only)} fundos de acoes. Data ref: {max_date.strftime('%d/%m/%Y')}.{filtro_desc}")
 
                     # Tabela de resumo (tipo o PDF)
