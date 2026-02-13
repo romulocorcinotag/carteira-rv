@@ -307,7 +307,7 @@ def _chart_layout(fig, title, height=480, y_title="% do PL", y_suffix="%",
         hoverlabel=dict(
             bgcolor=TAG_BRANCO, font_size=12,
             font_color=TAG_CINZA_ESCURO,
-            bordercolor=TAG_VERMELHO + "40",
+            bordercolor=_hex_to_rgba(TAG_VERMELHO, 0.25),
         ),
         hovermode="x unified",
     )
@@ -1391,7 +1391,7 @@ def main():
                                 legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=11, color=TAG_CINZA_MEDIO)),
                                 margin=dict(l=50, r=16, t=40, b=50),
                                 plot_bgcolor=TAG_BRANCO, paper_bgcolor="rgba(0,0,0,0)",
-                                hoverlabel=dict(bgcolor=TAG_BRANCO, font_size=12, bordercolor=TAG_VERMELHO + "40"),
+                                hoverlabel=dict(bgcolor=TAG_BRANCO, font_size=12, bordercolor=_hex_to_rgba(TAG_VERMELHO, 0.25)),
                                 hovermode="closest",
                             )
                             st.plotly_chart(fig_cap, use_container_width=True)
@@ -1543,7 +1543,7 @@ def main():
                             legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=11, color=TAG_CINZA_MEDIO)),
                             margin=dict(l=50, r=16, t=40, b=50),
                             plot_bgcolor=TAG_BRANCO, paper_bgcolor="rgba(0,0,0,0)",
-                            hoverlabel=dict(bgcolor=TAG_BRANCO, font_size=12, bordercolor=TAG_VERMELHO + "40"),
+                            hoverlabel=dict(bgcolor=TAG_BRANCO, font_size=12, bordercolor=_hex_to_rgba(TAG_VERMELHO, 0.25)),
                             hovermode="closest",
                         )
                         st.plotly_chart(fig_scatter, use_container_width=True)
