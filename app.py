@@ -6,7 +6,10 @@ import os
 import base64
 from collections import Counter
 
-from data_loader import carregar_todos_dados, carregar_fundos_rv
+from data_loader import (
+    carregar_todos_dados, carregar_fundos_rv,
+    carregar_cotas_fundos, carregar_universo_stats, BENCHMARK_CNPJS,
+)
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Paleta TAG Investimentos
@@ -506,8 +509,8 @@ def main():
     df_pos = df_posicoes[df_posicoes["cnpj_fundo"].isin(cnpjs_sel)].copy()
 
     # ── Tabs ──
-    tab_ativo, tab_setor, tab_pl, tab_comparativo = st.tabs([
-        "Por Ativo", "Por Setor", "Evolucao PL", "Comparativo"
+    tab_ativo, tab_setor, tab_pl, tab_comparativo, tab_perf = st.tabs([
+        "Por Ativo", "Por Setor", "Evolucao PL", "Comparativo", "Performance"
     ])
 
     # ══════════════════════════════════════════════════════════════════════
@@ -965,6 +968,431 @@ def main():
 
                 if pair_data:
                     st.dataframe(pd.DataFrame(pair_data), width="stretch", hide_index=True)
+
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TAB 5: PERFORMANCE
+    # ══════════════════════════════════════════════════════════════════════
+    with tab_perf:
+        # Mapear CNPJ -> nome para benchmarks
+        bench_cnpj_to_name = {v: k for k, v in BENCHMARK_CNPJS.items()}
+        all_cnpjs_for_cotas = tuple(set(cnpjs_sel))
+
+        # Carregar cotas (lazy — só quando tab é acessada)
+        df_cotas = carregar_cotas_fundos(all_cnpjs_for_cotas, meses=36)
+
+        if df_cotas.empty:
+            st.warning("Sem dados de cotas disponíveis. Verifique a conexão com a CVM.")
+        else:
+            # Filtros da tab
+            col_dt1, col_dt2, col_janela = st.columns([2, 2, 2])
+            min_data = df_cotas["data"].min().date()
+            max_data = df_cotas["data"].max().date()
+
+            with col_dt1:
+                dt_inicio = st.date_input(
+                    "Data inicio", value=max(min_data, max_data - pd.Timedelta(days=365*3)),
+                    min_value=min_data, max_value=max_data, format="DD/MM/YYYY",
+                    key="perf_dt_ini"
+                )
+            with col_dt2:
+                dt_fim = st.date_input(
+                    "Data fim", value=max_data,
+                    min_value=min_data, max_value=max_data, format="DD/MM/YYYY",
+                    key="perf_dt_fim"
+                )
+            with col_janela:
+                janela_opcoes = {"6 meses": 126, "1 ano": 252, "2 anos": 504, "3 anos": 756}
+                janela_label = st.selectbox("Janela movel", list(janela_opcoes.keys()), index=1)
+                janela_du = janela_opcoes[janela_label]
+
+            # Filtrar período
+            mask_periodo = (df_cotas["data"].dt.date >= dt_inicio) & (df_cotas["data"].dt.date <= dt_fim)
+            df_c = df_cotas[mask_periodo].copy()
+
+            if df_c.empty:
+                st.warning("Sem dados de cotas no período selecionado.")
+            else:
+                # Preparar dados: pivot de cotas por CNPJ
+                # Mapear cnpj -> nome legível
+                cnpj_to_label = {}
+                for nome in fundos_sel:
+                    cnpj = nome_cnpj_map[nome]
+                    short = " ".join(nome.split()[:3])
+                    if len(short) > 25:
+                        short = short[:22] + "..."
+                    cnpj_to_label[cnpj] = short
+                for cnpj, name in bench_cnpj_to_name.items():
+                    cnpj_to_label[cnpj] = name
+
+                # Pivot: data × cnpj → vl_quota
+                pivot_quota = df_c.pivot_table(index="data", columns="cnpj_fundo", values="vl_quota")
+                pivot_quota = pivot_quota.sort_index().ffill()
+
+                # Retornos diários
+                pivot_ret = pivot_quota.pct_change()
+
+                # Identificar colunas de fundos e benchmarks
+                fund_cols = [c for c in cnpjs_sel if c in pivot_quota.columns]
+                bench_cols = [c for c in BENCHMARK_CNPJS.values() if c in pivot_quota.columns]
+                all_cols = fund_cols + bench_cols
+
+                if not fund_cols:
+                    st.warning("Sem dados de cotas para os fundos selecionados no período.")
+                else:
+                    # ─── G1: Retorno Acumulado (base 100) ───
+                    st.markdown('<div class="tag-section-title">Retorno Acumulado (base 100)</div>', unsafe_allow_html=True)
+
+                    base100 = (1 + pivot_ret[all_cols]).cumprod() * 100
+                    base100.iloc[0] = 100  # Primeiro dia = 100
+
+                    fig_ret = go.Figure()
+                    # Fundos selecionados
+                    for i, cnpj in enumerate(fund_cols):
+                        label = cnpj_to_label.get(cnpj, cnpj[:10])
+                        fig_ret.add_trace(go.Scatter(
+                            x=base100.index, y=base100[cnpj],
+                            name=label, mode="lines",
+                            line=dict(width=2.5, color=TAG_CHART_COLORS[i % len(TAG_CHART_COLORS)]),
+                            hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}: %{{y:.1f}}<extra></extra>",
+                        ))
+                    # Benchmarks
+                    bench_styles = {
+                        list(BENCHMARK_CNPJS.values())[0]: dict(color=TAG_LARANJA, dash="dash"),
+                        list(BENCHMARK_CNPJS.values())[1]: dict(color="#333333", dash="dash"),
+                    }
+                    for cnpj in bench_cols:
+                        label = cnpj_to_label.get(cnpj, cnpj[:10])
+                        style = bench_styles.get(cnpj, dict(color="#999", dash="dash"))
+                        fig_ret.add_trace(go.Scatter(
+                            x=base100.index, y=base100[cnpj],
+                            name=label, mode="lines",
+                            line=dict(width=2, **style),
+                            hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}: %{{y:.1f}}<extra></extra>",
+                        ))
+
+                    # Linha de referência 100
+                    fig_ret.add_hline(y=100, line_dash="dot", line_color="#ccc", line_width=1)
+
+                    _chart_layout(fig_ret, "", height=480, y_title="Base 100", y_suffix="")
+                    st.plotly_chart(fig_ret, width="stretch")
+
+                    # ─── G2: Drawdown ───
+                    st.markdown('<div class="tag-section-title">Drawdown</div>', unsafe_allow_html=True)
+
+                    # Calcular drawdown para todos
+                    cum_quota = (1 + pivot_ret[all_cols]).cumprod()
+                    running_max = cum_quota.cummax()
+                    drawdown = (cum_quota / running_max - 1) * 100
+
+                    fig_dd = go.Figure()
+                    for i, cnpj in enumerate(fund_cols):
+                        label = cnpj_to_label.get(cnpj, cnpj[:10])
+                        fig_dd.add_trace(go.Scatter(
+                            x=drawdown.index, y=drawdown[cnpj],
+                            name=label, mode="lines",
+                            line=dict(width=1.5, color=TAG_CHART_COLORS[i % len(TAG_CHART_COLORS)]),
+                            fill="tozeroy" if i == 0 else None,
+                            fillcolor=_hex_to_rgba(TAG_CHART_COLORS[i % len(TAG_CHART_COLORS)], 0.12) if i == 0 else None,
+                            hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}: %{{y:.1f}}%<extra></extra>",
+                        ))
+                    for cnpj in bench_cols:
+                        label = cnpj_to_label.get(cnpj, cnpj[:10])
+                        style = bench_styles.get(cnpj, dict(color="#999", dash="dash"))
+                        fig_dd.add_trace(go.Scatter(
+                            x=drawdown.index, y=drawdown[cnpj],
+                            name=label, mode="lines",
+                            line=dict(width=1.5, **style),
+                            hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}: %{{y:.1f}}%<extra></extra>",
+                        ))
+
+                    _chart_layout(fig_dd, "", height=400, y_title="Drawdown (%)")
+                    st.plotly_chart(fig_dd, width="stretch")
+
+                    # ─── G3: Ranking Quantil (janela móvel) ───
+                    st.markdown(f'<div class="tag-section-title">Ranking Quantil — Janela {janela_label}</div>', unsafe_allow_html=True)
+                    st.caption("Posicao relativa do fundo no universo de fundos RV (0%=pior, 100%=melhor) com base no retorno acumulado na janela movel.")
+
+                    # Retorno rolling para os fundos/benchmarks
+                    rolling_ret = pivot_ret[all_cols].rolling(janela_du).apply(
+                        lambda x: (1 + x).prod() - 1, raw=False
+                    )
+
+                    # Carregar stats do universo para ranking
+                    df_stats = carregar_universo_stats(meses=36)
+
+                    if not df_stats.empty and not rolling_ret.dropna(how="all").empty:
+                        # Calcular retorno rolling do universo para percentis
+                        # Usar os stats diários para construir retorno acumulado do universo
+                        df_stats = df_stats.set_index("data")
+                        df_stats = df_stats[df_stats.index.isin(pivot_ret.index)]
+
+                        # Calcular rolling stats do universo
+                        univ_roll_mean = df_stats["media_ret"].rolling(janela_du).apply(
+                            lambda x: (1 + x).prod() - 1, raw=False
+                        )
+                        univ_roll_p25 = df_stats["p25"].rolling(janela_du).apply(
+                            lambda x: (1 + x).prod() - 1, raw=False
+                        )
+                        univ_roll_p75 = df_stats["p75"].rolling(janela_du).apply(
+                            lambda x: (1 + x).prod() - 1, raw=False
+                        )
+
+                        # Ranking percentil: (ret_fundo - p25) / (p75 - p25) normalizado para 0-100
+                        fig_rank = go.Figure()
+
+                        # Faixas de fundo (quintis)
+                        rank_dates = rolling_ret.dropna(how="all").index
+                        if len(rank_dates) > 0:
+                            quintil_colors = [
+                                ("#e8f5e9", "Q1 (top)"), ("#fff9c4", "Q2"),
+                                ("#fff3e0", "Q3"), ("#fce4ec", "Q4"),
+                                ("#ffebee", "Q5 (bottom)")
+                            ]
+                            for qi, (qcolor, qlabel) in enumerate(quintil_colors):
+                                y0 = 100 - qi * 20
+                                y1 = y0 - 20
+                                fig_rank.add_hrect(
+                                    y0=y1, y1=y0, fillcolor=qcolor,
+                                    line_width=0, layer="below",
+                                    annotation_text=qlabel if qi in [0, 4] else "",
+                                    annotation_position="right",
+                                )
+
+                        # Para cada fundo, calcular percentil no universo
+                        for i, cnpj in enumerate(fund_cols):
+                            label = cnpj_to_label.get(cnpj, cnpj[:10])
+                            fund_roll = rolling_ret[cnpj].dropna()
+                            if fund_roll.empty:
+                                continue
+                            # Percentil simples: (fundo - mediana_universo) normalizado
+                            # Usar p25 e p75 como referência
+                            percentil = pd.Series(index=fund_roll.index, dtype=float)
+                            for dt in fund_roll.index:
+                                if dt in univ_roll_p25.index and dt in univ_roll_p75.index:
+                                    p25 = univ_roll_p25.loc[dt]
+                                    p75 = univ_roll_p75.loc[dt]
+                                    if pd.notna(p25) and pd.notna(p75) and p75 != p25:
+                                        raw = (fund_roll.loc[dt] - p25) / (p75 - p25)
+                                        percentil.loc[dt] = max(0, min(100, raw * 50 + 25))
+                                    else:
+                                        percentil.loc[dt] = 50
+                                else:
+                                    percentil.loc[dt] = 50
+                            percentil = percentil.dropna()
+                            fig_rank.add_trace(go.Scatter(
+                                x=percentil.index, y=percentil.values,
+                                name=label, mode="lines",
+                                line=dict(width=2.5, color=TAG_CHART_COLORS[i % len(TAG_CHART_COLORS)]),
+                                hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}<br>Percentil: %{{y:.0f}}%<extra></extra>",
+                            ))
+
+                        for cnpj in bench_cols:
+                            label = cnpj_to_label.get(cnpj, cnpj[:10])
+                            style = bench_styles.get(cnpj, dict(color="#999", dash="dash"))
+                            fund_roll = rolling_ret[cnpj].dropna()
+                            if fund_roll.empty:
+                                continue
+                            percentil = pd.Series(index=fund_roll.index, dtype=float)
+                            for dt in fund_roll.index:
+                                if dt in univ_roll_p25.index and dt in univ_roll_p75.index:
+                                    p25 = univ_roll_p25.loc[dt]
+                                    p75 = univ_roll_p75.loc[dt]
+                                    if pd.notna(p25) and pd.notna(p75) and p75 != p25:
+                                        raw = (fund_roll.loc[dt] - p25) / (p75 - p25)
+                                        percentil.loc[dt] = max(0, min(100, raw * 50 + 25))
+                                    else:
+                                        percentil.loc[dt] = 50
+                                else:
+                                    percentil.loc[dt] = 50
+                            percentil = percentil.dropna()
+                            fig_rank.add_trace(go.Scatter(
+                                x=percentil.index, y=percentil.values,
+                                name=label, mode="lines",
+                                line=dict(width=2, **style),
+                                hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}<br>Percentil: %{{y:.0f}}%<extra></extra>",
+                            ))
+
+                        _chart_layout(fig_rank, "", height=450, y_title="Percentil", y_suffix="%")
+                        fig_rank.update_yaxes(range=[0, 100])
+                        st.plotly_chart(fig_rank, width="stretch")
+                    else:
+                        st.info("Dados do universo insuficientes para calcular o ranking quantil.")
+
+                    # ─── G4: Risco × Retorno (scatter) ───
+                    st.markdown(f'<div class="tag-section-title">Risco x Retorno — Janela {janela_label}</div>', unsafe_allow_html=True)
+                    st.caption("X = Ulcer Index (risco de drawdown). Y = Retorno anualizado no período. Quanto mais acima e à esquerda, melhor.")
+
+                    # Calcular métricas para scatter
+                    scatter_data = []
+                    for cnpj in all_cols:
+                        if cnpj not in pivot_ret.columns:
+                            continue
+                        ret_series = pivot_ret[cnpj].dropna()
+                        if len(ret_series) < 60:
+                            continue
+
+                        # Retorno acumulado e anualizado
+                        ret_acum = (1 + ret_series).prod() - 1
+                        n_dias = len(ret_series)
+                        ret_anual = (1 + ret_acum) ** (252 / n_dias) - 1 if n_dias > 0 else 0
+
+                        # Ulcer Index
+                        cum = (1 + ret_series).cumprod()
+                        dd = (cum / cum.cummax() - 1) * 100
+                        ulcer = np.sqrt((dd ** 2).mean())
+
+                        label = cnpj_to_label.get(cnpj, cnpj[:10])
+                        is_fund = cnpj in fund_cols
+                        is_bench = cnpj in bench_cols
+
+                        scatter_data.append({
+                            "cnpj": cnpj, "label": label,
+                            "ret_anual": ret_anual * 100, "ulcer": ulcer,
+                            "is_fund": is_fund, "is_bench": is_bench,
+                        })
+
+                    if scatter_data:
+                        df_scatter = pd.DataFrame(scatter_data)
+
+                        fig_scatter = go.Figure()
+
+                        # Fundos selecionados (estrelas grandes)
+                        df_funds = df_scatter[df_scatter["is_fund"]]
+                        for i, row in df_funds.iterrows():
+                            fig_scatter.add_trace(go.Scatter(
+                                x=[row["ulcer"]], y=[row["ret_anual"]],
+                                mode="markers+text", name=row["label"],
+                                marker=dict(symbol="star", size=18,
+                                            color=TAG_CHART_COLORS[df_funds.index.get_loc(i) % len(TAG_CHART_COLORS)],
+                                            line=dict(width=1, color="white")),
+                                text=[row["label"]], textposition="top center",
+                                textfont=dict(size=10),
+                                hovertemplate=f"<b>{row['label']}</b><br>Retorno: {row['ret_anual']:.1f}% a.a.<br>Ulcer Index: {row['ulcer']:.1f}<extra></extra>",
+                            ))
+
+                        # Benchmarks (estrelas especiais)
+                        df_bench = df_scatter[df_scatter["is_bench"]]
+                        bench_color_map = {
+                            list(BENCHMARK_CNPJS.values())[0]: TAG_LARANJA,
+                            list(BENCHMARK_CNPJS.values())[1]: "#333333",
+                        }
+                        for _, row in df_bench.iterrows():
+                            fig_scatter.add_trace(go.Scatter(
+                                x=[row["ulcer"]], y=[row["ret_anual"]],
+                                mode="markers+text", name=row["label"],
+                                marker=dict(symbol="star", size=16,
+                                            color=bench_color_map.get(row["cnpj"], "#999"),
+                                            line=dict(width=1, color="white")),
+                                text=[row["label"]], textposition="top center",
+                                textfont=dict(size=10),
+                                hovertemplate=f"<b>{row['label']}</b><br>Retorno: {row['ret_anual']:.1f}% a.a.<br>Ulcer Index: {row['ulcer']:.1f}<extra></extra>",
+                            ))
+
+                        # Linhas de referência nos eixos
+                        fig_scatter.add_hline(y=0, line_dash="dot", line_color="#ccc", line_width=1)
+
+                        fig_scatter.update_layout(
+                            height=500, template="plotly_white",
+                            xaxis=dict(title="Ulcer Index (risco)", zeroline=True),
+                            yaxis=dict(title="Retorno Anualizado (%)", ticksuffix="%"),
+                            font=dict(family="Tahoma, sans-serif"),
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10)),
+                            margin=dict(l=50, r=20, t=40, b=50),
+                            hoverlabel=dict(bgcolor="white", font_size=12),
+                        )
+                        st.plotly_chart(fig_scatter, width="stretch")
+
+                    # ─── G5: Tabela de Métricas ───
+                    st.markdown('<div class="tag-section-title">Metricas de Performance</div>', unsafe_allow_html=True)
+
+                    CDI_ANUAL = 0.1315  # ~13.15% a.a. (aproximação)
+                    cdi_diario = (1 + CDI_ANUAL) ** (1/252) - 1
+
+                    metrics_rows = []
+                    for cnpj in all_cols:
+                        if cnpj not in pivot_ret.columns:
+                            continue
+                        ret = pivot_ret[cnpj].dropna()
+                        if len(ret) < 20:
+                            continue
+
+                        ret_acum = (1 + ret).prod() - 1
+                        n_dias = len(ret)
+                        ret_anual = (1 + ret_acum) ** (252 / n_dias) - 1 if n_dias > 0 else 0
+                        vol_anual = ret.std() * np.sqrt(252)
+                        sharpe = (ret_anual - CDI_ANUAL) / vol_anual if vol_anual > 0 else 0
+
+                        cum = (1 + ret).cumprod()
+                        dd = (cum / cum.cummax() - 1) * 100
+                        max_dd = dd.min()
+                        ulcer = np.sqrt((dd ** 2).mean())
+
+                        pct_positivos = (ret > 0).sum() / len(ret) * 100
+
+                        label = cnpj_to_label.get(cnpj, cnpj[:10])
+                        metrics_rows.append({
+                            "Fundo": label,
+                            "Ret. Acum.": f"{ret_acum*100:.1f}%",
+                            "Ret. Anual.": f"{ret_anual*100:.1f}%",
+                            "Vol. Anual.": f"{vol_anual*100:.1f}%",
+                            "Sharpe": f"{sharpe:.2f}",
+                            "Max DD": f"{max_dd:.1f}%",
+                            "Ulcer Idx": f"{ulcer:.1f}",
+                            "% Dias +": f"{pct_positivos:.0f}%",
+                        })
+
+                    if metrics_rows:
+                        df_metrics = pd.DataFrame(metrics_rows)
+                        st.dataframe(df_metrics, width="stretch", hide_index=True)
+                    else:
+                        st.info("Dados insuficientes para calcular métricas.")
+
+                    # ─── G6: Rolling Sharpe ───
+                    st.markdown(f'<div class="tag-section-title">Sharpe Rolling — Janela {janela_label}</div>', unsafe_allow_html=True)
+                    st.caption(f"Sharpe ratio calculado em janelas moveis de {janela_label}. CDI de referencia: {CDI_ANUAL*100:.1f}% a.a.")
+
+                    cdi_janela = (1 + CDI_ANUAL) ** (janela_du / 252) - 1
+
+                    fig_sharpe = go.Figure()
+                    for i, cnpj in enumerate(fund_cols):
+                        if cnpj not in pivot_ret.columns:
+                            continue
+                        label = cnpj_to_label.get(cnpj, cnpj[:10])
+                        ret = pivot_ret[cnpj]
+                        roll_ret = ret.rolling(janela_du).apply(lambda x: (1 + x).prod() - 1, raw=False)
+                        roll_vol = ret.rolling(janela_du).std() * np.sqrt(janela_du)
+                        roll_sharpe = (roll_ret - cdi_janela) / roll_vol
+                        roll_sharpe = roll_sharpe.dropna()
+
+                        fig_sharpe.add_trace(go.Scatter(
+                            x=roll_sharpe.index, y=roll_sharpe.values,
+                            name=label, mode="lines",
+                            line=dict(width=2, color=TAG_CHART_COLORS[i % len(TAG_CHART_COLORS)]),
+                            hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}<br>Sharpe: %{{y:.2f}}<extra></extra>",
+                        ))
+
+                    for cnpj in bench_cols:
+                        if cnpj not in pivot_ret.columns:
+                            continue
+                        label = cnpj_to_label.get(cnpj, cnpj[:10])
+                        style = bench_styles.get(cnpj, dict(color="#999", dash="dash"))
+                        ret = pivot_ret[cnpj]
+                        roll_ret = ret.rolling(janela_du).apply(lambda x: (1 + x).prod() - 1, raw=False)
+                        roll_vol = ret.rolling(janela_du).std() * np.sqrt(janela_du)
+                        roll_sharpe = (roll_ret - cdi_janela) / roll_vol
+                        roll_sharpe = roll_sharpe.dropna()
+
+                        fig_sharpe.add_trace(go.Scatter(
+                            x=roll_sharpe.index, y=roll_sharpe.values,
+                            name=label, mode="lines",
+                            line=dict(width=1.5, **style),
+                            hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}<br>Sharpe: %{{y:.2f}}<extra></extra>",
+                        ))
+
+                    fig_sharpe.add_hline(y=0, line_dash="dot", line_color="#ccc", line_width=1)
+                    _chart_layout(fig_sharpe, "", height=420, y_title="Sharpe Ratio", y_suffix="")
+                    st.plotly_chart(fig_sharpe, width="stretch")
 
 
 if __name__ == "__main__":

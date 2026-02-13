@@ -57,9 +57,12 @@ from data_loader import (
     carregar_fundos_rv,
     carregar_dados_xml,
     carregar_dados_cvm,
+    carregar_cotas_fundos,
+    carregar_universo_stats,
     _download_cvm_blc4,
     _download_cvm_pl,
     _normalizar_cnpj,
+    BENCHMARK_CNPJS,
 )
 from sector_map import classificar_setor
 
@@ -114,7 +117,7 @@ def main():
     print("=" * 60)
 
     # ── 1. Fundos RV (sempre atualiza) ──
-    print("\n[1/4] Carregando fundos RV...")
+    print("\n[1/6] Carregando fundos RV...")
     t0 = time.time()
     df_fundos = carregar_fundos_rv()
     print(f"  -> {len(df_fundos)} fundos em {time.time()-t0:.1f}s")
@@ -127,7 +130,7 @@ def main():
     # ── 2. XMLs (incremental: só novos) ──
     xml_path = os.path.join(DATA_DIR, "posicoes_xml.parquet")
     if not args.full and os.path.exists(xml_path):
-        print("\n[2/4] XMLs: verificando incrementalmente...")
+        print("\n[2/6] XMLs: verificando incrementalmente...")
         df_xml_old = pd.read_parquet(xml_path)
         df_xml_old["data"] = pd.to_datetime(df_xml_old["data"])
         old_max_date = df_xml_old["data"].max()
@@ -148,7 +151,7 @@ def main():
             print(f"  -> Sem mudancas ({len(df_xml)} registros)")
         print(f"  -> {time.time()-t0:.1f}s")
     else:
-        print("\n[2/4] Processando todos os XMLs...")
+        print("\n[2/6] Processando todos os XMLs...")
         t0 = time.time()
         df_xml = carregar_dados_xml(todos_cnpjs)
         print(f"  -> {len(df_xml)} registros XML em {time.time()-t0:.1f}s")
@@ -159,7 +162,7 @@ def main():
     cnpjs_com_xml = tuple(set(df_xml["cnpj_fundo"].unique())) if not df_xml.empty else ()
 
     if not args.full and os.path.exists(cvm_path):
-        print("\n[3/4] CVM: verificando meses novos...")
+        print("\n[3/6] CVM: verificando meses novos...")
         df_cvm_old = pd.read_parquet(cvm_path)
         df_cvm_old["data"] = pd.to_datetime(df_cvm_old["data"])
         meses_existentes = set(df_cvm_old["data"].dt.strftime("%Y%m").unique())
@@ -257,20 +260,42 @@ def main():
         df_cvm.to_parquet(cvm_path, index=False)
         print(f"  -> Total CVM: {len(df_cvm)} registros")
     else:
-        print("\n[3/4] Baixando todos os dados CVM (36 meses)...")
+        print("\n[3/6] Baixando todos os dados CVM (36 meses)...")
         t0 = time.time()
         df_cvm = carregar_dados_cvm(todos_cnpjs, cnpjs_com_xml, meses=36)
         print(f"  -> {len(df_cvm)} registros CVM em {time.time()-t0:.1f}s")
         df_cvm.to_parquet(cvm_path, index=False)
 
     # ── 4. Consolidar com dedup ──
-    print("\n[4/4] Consolidando com deduplicacao...")
+    print("\n[4/6] Consolidando com deduplicacao...")
     df_posicoes = pd.concat([df_xml, df_cvm], ignore_index=True)
     df_posicoes = _dedup_consolidado(df_posicoes, df_fundos)
 
     df_posicoes.to_parquet(os.path.join(DATA_DIR, "posicoes_consolidado.parquet"), index=False)
     print(f"  -> {len(df_posicoes)} registros consolidados")
     print(f"  -> CNPJs com dados: {df_posicoes['cnpj_fundo'].nunique()}")
+
+    # ── 5. Cotas dos fundos (inf_diario) ──
+    print("\n[5/6] Exportando cotas dos fundos...")
+    t0 = time.time()
+    all_cnpjs_cotas = tuple(set(
+        df_fundos["cnpj_norm"].dropna().tolist()
+    ))
+    df_cotas = carregar_cotas_fundos(all_cnpjs_cotas, meses=36)
+    cotas_path = os.path.join(DATA_DIR, "cotas_consolidado.parquet")
+    df_cotas.to_parquet(cotas_path, index=False)
+    print(f"  -> {len(df_cotas)} registros de cotas em {time.time()-t0:.1f}s")
+
+    # ── 6. Estatísticas do universo ──
+    print("\n[6/6] Calculando estatisticas do universo...")
+    t0 = time.time()
+    df_stats = carregar_universo_stats(meses=36)
+    stats_path = os.path.join(DATA_DIR, "universo_stats.parquet")
+    if not df_stats.empty:
+        df_stats.to_parquet(stats_path, index=False)
+        print(f"  -> {len(df_stats)} datas com stats em {time.time()-t0:.1f}s")
+    else:
+        print(f"  -> Sem dados de universo (cache pode estar indisponivel)")
 
     # Resumo
     total_size = sum(

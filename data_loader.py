@@ -32,6 +32,12 @@ XML_BASE_PATH = r"G:\Drives compartilhados\Arquivos_XML_Fechamento"
 CACHE_DIR = os.path.join(_SCRIPT_DIR, "cache")
 CVM_ZIP_URL = "https://dados.cvm.gov.br/dados/FI/DOC/CDA/DADOS/cda_fi_{yyyymm}.zip"
 CVM_BLC4_ZIP_URL = "https://dados.cvm.gov.br/dados/FI/DOC/CDA/DADOS/cda_fi_BLC_4_{yyyymm}.zip"
+CVM_INF_DIARIO_URL = "https://dados.cvm.gov.br/dados/FI/DOC/INF_DIARIO/DADOS/inf_diario_fi_{yyyymm}.zip"
+
+BENCHMARK_CNPJS = {
+    "IBOVESPA (BOVA11)": "10406511000161",
+    "SMALL (SMAL11)": "10406600000108",
+}
 
 NS_GALGO = "http://www.sistemagalgo.com/SchemaPosicaoAtivos"
 NS_DOC = "urn:iso:std:iso:20022:tech:xsd:semt.003.001.04"
@@ -465,6 +471,188 @@ def _download_cvm_pl(yyyymm: str) -> pd.DataFrame | None:
         return df
     except Exception:
         return None
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Download e parse CVM inf_diario (cotas diárias)
+# ──────────────────────────────────────────────────────────────────────────────
+def _download_cvm_inf_diario(yyyymm: str, cnpjs_filtro: set | None = None) -> pd.DataFrame | None:
+    """Baixa e cacheia um mês de dados de cotas diárias (inf_diario).
+
+    Se cnpjs_filtro fornecido, salva apenas esses CNPJs no cache (muito menor).
+    """
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    suffix = "_filtered" if cnpjs_filtro else ""
+    cache_path = os.path.join(CACHE_DIR, f"cvm_inf_diario_{yyyymm}{suffix}.parquet")
+
+    if os.path.exists(cache_path):
+        age_hours = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(cache_path))).total_seconds() / 3600
+        today = datetime.now()
+        ref_date = datetime(int(yyyymm[:4]), int(yyyymm[4:6]), 1)
+        months_old = (today.year - ref_date.year) * 12 + today.month - ref_date.month
+        if months_old > 3 or age_hours < 24:
+            try:
+                return pd.read_parquet(cache_path)
+            except Exception:
+                pass
+
+    url = CVM_INF_DIARIO_URL.format(yyyymm=yyyymm)
+    try:
+        resp = requests.get(url, timeout=120)
+        if resp.status_code != 200:
+            return None
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            csv_names = [n for n in zf.namelist() if n.endswith(".csv")]
+            if not csv_names:
+                return None
+            with zf.open(csv_names[0]) as csvfile:
+                df = pd.read_csv(csvfile, sep=";", encoding="latin-1", low_memory=False)
+    except Exception:
+        return None
+
+    # Normalizar coluna CNPJ
+    cnpj_col = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df.columns else "CNPJ_FUNDO"
+    if cnpj_col not in df.columns:
+        return None
+    df["cnpj_norm"] = df[cnpj_col].apply(_normalizar_cnpj)
+
+    # Filtrar se solicitado
+    if cnpjs_filtro:
+        df = df[df["cnpj_norm"].isin(cnpjs_filtro)].copy()
+
+    # Manter apenas colunas úteis
+    cols_keep = ["cnpj_norm", "DT_COMPTC", "VL_QUOTA", "VL_PATRIM_LIQ"]
+    cols_available = [c for c in cols_keep if c in df.columns]
+    df = df[cols_available].copy()
+
+    df.to_parquet(cache_path, index=False)
+    return df
+
+
+@st.cache_data(ttl=3600, show_spinner="Baixando cotas dos fundos (CVM inf_diario)...")
+def carregar_cotas_fundos(cnpjs: tuple, meses: int = 36) -> pd.DataFrame:
+    """Carrega cotas diárias dos fundos de interesse + benchmarks.
+
+    Retorna DataFrame: cnpj_fundo | data | vl_quota | vl_patrim_liq | retorno_diario
+    """
+    # Cloud mode
+    cotas_path = os.path.join(DATA_DIR, "cotas_consolidado.parquet")
+    if CLOUD_MODE:
+        if os.path.exists(cotas_path):
+            df = pd.read_parquet(cotas_path)
+            df["data"] = pd.to_datetime(df["data"])
+            # Filtrar CNPJs de interesse + benchmarks
+            cnpjs_set = set(cnpjs) | set(BENCHMARK_CNPJS.values())
+            return df[df["cnpj_fundo"].isin(cnpjs_set)].copy()
+        return pd.DataFrame(columns=["cnpj_fundo", "data", "vl_quota", "vl_patrim_liq", "retorno_diario"])
+
+    # Modo local: baixar da CVM
+    cnpjs_set = set(cnpjs) | set(BENCHMARK_CNPJS.values())
+
+    today = datetime.now()
+    meses_list = []
+    for i in range(meses + 1):
+        d = today - timedelta(days=30 * i)
+        ym = d.strftime("%Y%m")
+        if ym not in meses_list:
+            meses_list.append(ym)
+    meses_list = sorted(set(meses_list))
+
+    all_dfs = []
+    progress = st.progress(0, text="Baixando cotas CVM...")
+
+    for idx, ym in enumerate(meses_list):
+        progress.progress((idx + 1) / len(meses_list), text=f"Cotas {ym[:4]}/{ym[4:]}...")
+        df = _download_cvm_inf_diario(ym, cnpjs_filtro=cnpjs_set)
+        if df is not None and not df.empty:
+            all_dfs.append(df)
+
+    progress.empty()
+
+    if not all_dfs:
+        return pd.DataFrame(columns=["cnpj_fundo", "data", "vl_quota", "vl_patrim_liq", "retorno_diario"])
+
+    df_all = pd.concat(all_dfs, ignore_index=True)
+    df_all = df_all.rename(columns={
+        "cnpj_norm": "cnpj_fundo",
+        "DT_COMPTC": "data",
+        "VL_QUOTA": "vl_quota",
+        "VL_PATRIM_LIQ": "vl_patrim_liq",
+    })
+    df_all["data"] = pd.to_datetime(df_all["data"])
+    df_all = df_all.sort_values(["cnpj_fundo", "data"]).drop_duplicates(
+        subset=["cnpj_fundo", "data"], keep="last"
+    )
+
+    # Calcular retorno diário vetorizado
+    df_all["retorno_diario"] = df_all.groupby("cnpj_fundo")["vl_quota"].transform(
+        lambda s: s.pct_change()
+    )
+
+    return df_all.reset_index(drop=True)
+
+
+@st.cache_data(ttl=3600, show_spinner="Calculando estatisticas do universo de fundos...")
+def carregar_universo_stats(meses: int = 36) -> pd.DataFrame:
+    """Carrega estatísticas agregadas do universo de fundos RV.
+
+    Em vez de carregar TODOS os fundos em memória, baixa mês a mês e
+    calcula apenas as estatísticas agregadas (média, std, percentis).
+
+    Retorna DataFrame: data | media_ret | std_ret | p10 | p25 | p50 | p75 | p90 | n_fundos
+    """
+    # Cloud mode
+    stats_path = os.path.join(DATA_DIR, "universo_stats.parquet")
+    if CLOUD_MODE:
+        if os.path.exists(stats_path):
+            df = pd.read_parquet(stats_path)
+            df["data"] = pd.to_datetime(df["data"])
+            return df
+        return pd.DataFrame()
+
+    today = datetime.now()
+    meses_list = []
+    for i in range(meses + 1):
+        d = today - timedelta(days=30 * i)
+        ym = d.strftime("%Y%m")
+        if ym not in meses_list:
+            meses_list.append(ym)
+    meses_list = sorted(set(meses_list))
+
+    all_dfs = []
+    progress = st.progress(0, text="Baixando universo CVM...")
+
+    for idx, ym in enumerate(meses_list):
+        progress.progress((idx + 1) / len(meses_list), text=f"Universo {ym[:4]}/{ym[4:]}...")
+        df = _download_cvm_inf_diario(ym, cnpjs_filtro=None)
+        if df is None or df.empty:
+            continue
+        # Calcular retorno diário para todos os fundos deste mês
+        df = df.rename(columns={"DT_COMPTC": "data", "VL_QUOTA": "vl_quota", "cnpj_norm": "cnpj"})
+        df["data"] = pd.to_datetime(df["data"])
+        df = df.sort_values(["cnpj", "data"])
+        df["ret"] = df.groupby("cnpj")["vl_quota"].transform(lambda s: s.pct_change())
+        # Agregar: por data, calcular stats
+        daily_stats = df.groupby("data")["ret"].agg(
+            media_ret="mean",
+            std_ret="std",
+            p10=lambda x: np.nanpercentile(x, 10),
+            p25=lambda x: np.nanpercentile(x, 25),
+            p50=lambda x: np.nanpercentile(x, 50),
+            p75=lambda x: np.nanpercentile(x, 75),
+            p90=lambda x: np.nanpercentile(x, 90),
+            n_fundos="count",
+        ).reset_index()
+        all_dfs.append(daily_stats)
+
+    progress.empty()
+
+    if not all_dfs:
+        return pd.DataFrame()
+
+    df_stats = pd.concat(all_dfs, ignore_index=True)
+    df_stats = df_stats.sort_values("data").drop_duplicates(subset=["data"], keep="last")
+    return df_stats.reset_index(drop=True)
 
 
 @st.cache_data(ttl=3600, show_spinner="Baixando dados CVM (pode levar alguns minutos na primeira vez)...")
