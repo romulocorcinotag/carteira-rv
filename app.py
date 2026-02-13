@@ -141,17 +141,9 @@ def inject_css():
 # ──────────────────────────────────────────────────────────────────────────────
 # Header
 # ──────────────────────────────────────────────────────────────────────────────
-def render_header(ultima_atualizacao=None):
+def render_header():
     logo_b64 = get_logo_base64()
     logo_html = f'<div class="tag-logo-box"><img src="data:image/png;base64,{logo_b64}"></div>' if logo_b64 else ""
-    dt_html = ""
-    if ultima_atualizacao:
-        dt_html = (
-            '<div style="margin-left:auto;text-align:right;padding-right:8px;">'
-            '<div style="font-size:0.75rem;color:#999;font-weight:500;text-transform:uppercase;letter-spacing:0.5px;">Ultima atualizacao</div>'
-            f'<div style="font-size:1.15rem;font-weight:700;color:{TAG_VERMELHO};margin-top:2px;">{ultima_atualizacao}</div>'
-            '</div>'
-        )
     st.markdown(f"""
     <div class="tag-header">
         {logo_html}
@@ -159,7 +151,6 @@ def render_header(ultima_atualizacao=None):
             <h1>Carteira RV</h1>
             <p>Evolucao de Carteiras dos Fundos de Renda Variavel</p>
         </div>
-        {dt_html}
     </div>
     <div class="tag-divider"></div>
     """, unsafe_allow_html=True)
@@ -466,13 +457,7 @@ def main():
 
     # Carregar dados
     df_fundos, df_posicoes = carregar_todos_dados()
-
-    # Data de ultima atualizacao
-    if not df_posicoes.empty:
-        ultima_dt = df_posicoes["data"].max()
-        render_header(ultima_atualizacao=ultima_dt.strftime("%d/%m/%Y"))
-    else:
-        render_header()
+    render_header()
 
     if df_posicoes.empty:
         st.warning("Nenhum dado de carteira encontrado.")
