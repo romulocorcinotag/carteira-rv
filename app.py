@@ -293,16 +293,8 @@ def _chart_layout(fig, title, height=480, y_title="% do PL", y_suffix="%",
         font=dict(size=11, color=TAG_CINZA_MEDIO, family="Tahoma, sans-serif")
     )
 
-    fig.update_layout(
-        title=dict(text=title, font=dict(size=14, color=TAG_VERMELHO, family="Tahoma, sans-serif")) if title else {},
+    layout_kwargs = dict(
         height=height, template="plotly_white",
-        yaxis=dict(
-            title=dict(text=y_title, font=dict(size=11, color=TAG_CINZA_MEDIO)),
-            ticksuffix=y_suffix,
-            tickfont=dict(size=10, color=TAG_CINZA_MEDIO),
-            gridcolor="#e8e6e0", gridwidth=1,
-            zeroline=True, zerolinecolor="#d0cec6", zerolinewidth=1,
-        ) if y_title else {},
         xaxis=dict(
             tickfont=dict(size=10, color=TAG_CINZA_MEDIO),
             gridcolor="#e8e6e0", gridwidth=1,
@@ -319,6 +311,17 @@ def _chart_layout(fig, title, height=480, y_title="% do PL", y_suffix="%",
         ),
         hovermode="x unified",
     )
+    if title:
+        layout_kwargs["title"] = dict(text=title, font=dict(size=14, color=TAG_VERMELHO, family="Tahoma, sans-serif"))
+    if y_title:
+        layout_kwargs["yaxis"] = dict(
+            title=dict(text=y_title, font=dict(size=11, color=TAG_CINZA_MEDIO)),
+            ticksuffix=y_suffix,
+            tickfont=dict(size=10, color=TAG_CINZA_MEDIO),
+            gridcolor="#e8e6e0", gridwidth=1,
+            zeroline=True, zerolinecolor="#d0cec6", zerolinewidth=1,
+        )
+    fig.update_layout(**layout_kwargs)
     return fig
 
 
