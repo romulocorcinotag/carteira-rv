@@ -75,32 +75,57 @@ def inject_css():
     st.markdown(f"""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-        /* ── Base Dark ── */
+
+        /* ══════════════════════════════════════════════════
+           BASE — Dark theme, no gray bars
+        ══════════════════════════════════════════════════ */
         .stApp {{
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
             background: {DARK_BG} !important;
             color: {DARK_TEXT} !important;
         }}
+        /* Remove Streamlit's default top bar / toolbar / deploy button */
+        header[data-testid="stHeader"] {{
+            background: {DARK_BG} !important;
+            border-bottom: none !important;
+        }}
+        .stDeployButton, [data-testid="stToolbar"] {{
+            display: none !important;
+        }}
+        /* Remove Streamlit bottom footer */
+        footer {{
+            display: none !important;
+        }}
+        /* Subtle background gradient overlay */
         .stApp::before {{
             content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: radial-gradient(ellipse at 20% 0%, {ACCENT_RED_GLOW} 0%, transparent 50%),
-                        radial-gradient(ellipse at 80% 100%, rgba(88,198,245,0.06) 0%, transparent 50%);
+            background: radial-gradient(ellipse at 15% 0%, rgba(99,13,36,0.12) 0%, transparent 50%),
+                        radial-gradient(ellipse at 85% 100%, rgba(88,198,245,0.04) 0%, transparent 50%);
             pointer-events: none; z-index: 0;
         }}
         .stMainBlockContainer {{
-            max-width: 1360px;
+            max-width: 1400px;
             padding-top: 0.5rem !important;
         }}
+        /* ── Text — brighter defaults ── */
         .stMarkdown p, .stMarkdown li {{
             font-size: 0.9rem !important;
             line-height: 1.6 !important;
-            color: {DARK_TEXT_MUTED} !important;
+            color: #C0C0D0 !important;
         }}
         h1, h2, h3 {{
-            color: {DARK_TEXT} !important;
+            color: #F0F0F8 !important;
             font-family: 'Inter', sans-serif !important;
         }}
-        /* ── Tabs ── */
+        h3 {{
+            font-size: 1.1rem !important;
+            font-weight: 700 !important;
+            color: {DARK_TEXT} !important;
+        }}
+
+        /* ══════════════════════════════════════════════════
+           TABS — pill style
+        ══════════════════════════════════════════════════ */
         .stTabs [data-baseweb="tab-list"] {{
             gap: 2px; background: {DARK_SURFACE};
             border-radius: 10px; padding: 4px;
@@ -108,10 +133,10 @@ def inject_css():
         }}
         .stTabs [data-baseweb="tab"] {{
             font-size: 12px !important; font-weight: 600 !important;
-            padding: 10px 20px !important; color: {DARK_TEXT_MUTED} !important;
+            padding: 10px 20px !important; color: #A0A0B8 !important;
             text-transform: uppercase !important; letter-spacing: 0.8px !important;
             border-radius: 8px !important; border: none !important;
-            transition: all 0.25s cubic-bezier(0.4,0,0.2,1) !important;
+            transition: all 0.25s ease !important;
             background: transparent !important;
         }}
         .stTabs [data-baseweb="tab"]:hover {{
@@ -119,7 +144,7 @@ def inject_css():
             background: {DARK_SURFACE_2} !important;
         }}
         .stTabs [aria-selected="true"] {{
-            font-weight: 700 !important; color: {DARK_BG} !important;
+            font-weight: 700 !important; color: #FFFFFF !important;
             background: linear-gradient(135deg, {TAG_LARANJA}, #FF6B3D) !important;
             box-shadow: 0 2px 12px {ACCENT_GLOW} !important;
         }}
@@ -127,7 +152,10 @@ def inject_css():
         .stTabs [data-baseweb="tab-border"] {{
             display: none !important;
         }}
-        /* ── DataFrames ── */
+
+        /* ══════════════════════════════════════════════════
+           DATAFRAMES (st.dataframe)
+        ══════════════════════════════════════════════════ */
         .stDataFrame {{
             border-radius: 10px !important;
             overflow: hidden !important;
@@ -136,7 +164,7 @@ def inject_css():
             font-size: 10px !important; font-weight: 700 !important;
             padding: 10px 14px !important; text-transform: uppercase !important;
             letter-spacing: 0.6px !important;
-            background: {DARK_SURFACE} !important; color: {TAG_LARANJA} !important;
+            background: {DARK_SURFACE_2} !important; color: {TAG_LARANJA} !important;
             border-bottom: 1px solid {DARK_BORDER} !important;
         }}
         .stDataFrame td {{
@@ -145,14 +173,25 @@ def inject_css():
             background: {DARK_SURFACE} !important;
             border-bottom: 1px solid {DARK_BORDER}80 !important;
         }}
-        /* ── Markdown tables ── */
+        .stDataFrame [role="columnheader"] {{
+            color: {TAG_LARANJA} !important;
+            background: {DARK_SURFACE_2} !important;
+        }}
+        .stDataFrame [role="gridcell"] {{
+            color: {DARK_TEXT} !important;
+            background: {DARK_SURFACE} !important;
+        }}
+
+        /* ══════════════════════════════════════════════════
+           MARKDOWN TABLES
+        ══════════════════════════════════════════════════ */
         .stMarkdown table {{
             width: 100% !important; border-collapse: collapse !important;
             margin: 12px 0 !important; border-radius: 10px !important;
             overflow: hidden !important;
         }}
         .stMarkdown table th {{
-            background: {DARK_SURFACE} !important; color: {TAG_LARANJA} !important;
+            background: {DARK_SURFACE_2} !important; color: {TAG_LARANJA} !important;
             padding: 11px 16px !important; text-align: left !important;
             font-weight: 700 !important; font-size: 10px !important;
             text-transform: uppercase !important; letter-spacing: 0.6px !important;
@@ -169,7 +208,10 @@ def inject_css():
         .stMarkdown table tr:hover td {{
             background: {DARK_SURFACE_2} !important;
         }}
-        /* ── Inputs (dark) ── */
+
+        /* ══════════════════════════════════════════════════
+           INPUTS — dark, bright text
+        ══════════════════════════════════════════════════ */
         .stSelectbox > div > div,
         .stMultiSelect > div > div,
         .stDateInput > div > div {{
@@ -179,7 +221,7 @@ def inject_css():
             color: {DARK_TEXT} !important;
         }}
         .stSelectbox label, .stMultiSelect label, .stDateInput label {{
-            color: {DARK_TEXT_MUTED} !important;
+            color: #B0B0C8 !important;
             font-size: 11px !important; text-transform: uppercase !important;
             letter-spacing: 0.5px !important; font-weight: 600 !important;
         }}
@@ -188,118 +230,43 @@ def inject_css():
             border-color: {TAG_LARANJA} !important;
             box-shadow: 0 0 0 2px {ACCENT_GLOW} !important;
         }}
+        /* Force input text colors */
+        .stSelectbox div[data-baseweb="select"] span,
+        .stSelectbox div[data-baseweb="select"] div,
+        .stSelectbox div[data-baseweb="select"] input,
+        .stMultiSelect div[data-baseweb="select"] span,
+        .stMultiSelect div[data-baseweb="select"] div,
+        .stMultiSelect div[data-baseweb="select"] input {{
+            color: {DARK_TEXT} !important;
+        }}
+        .stDateInput input, .stNumberInput input, .stTextInput input {{
+            color: {DARK_TEXT} !important;
+            background: {DARK_SURFACE} !important;
+        }}
+        .stApp input, .stApp select, .stApp textarea {{
+            color: {DARK_TEXT} !important;
+        }}
+        /* Dropdown arrow / icons */
+        .stSelectbox svg, .stMultiSelect svg, .stDateInput svg {{
+            fill: #B0B0C8 !important;
+        }}
+        [data-baseweb="select"] > div,
+        [data-baseweb="select"] > div > div {{
+            color: {DARK_TEXT} !important;
+        }}
+
         /* ── Multiselect pills ── */
         span[data-baseweb="tag"] {{
             background: linear-gradient(135deg, {TAG_VERMELHO}, #8B1A3A) !important;
-            color: {TAG_BRANCO} !important;
+            color: #FFFFFF !important;
             border-radius: 6px !important; font-size: 11px !important;
             font-weight: 600 !important;
         }}
-        /* ── Header ── */
-        .tag-header {{
-            display: flex; align-items: center; gap: 20px;
-            padding: 20px 0 16px 0;
+        .stMultiSelect [data-baseweb="tag"] button {{
+            color: white !important;
         }}
-        .tag-logo-box {{
-            background: linear-gradient(135deg, {TAG_VERMELHO}, #8B1A3A);
-            border-radius: 14px;
-            padding: 14px 20px; display: flex; align-items: center;
-            justify-content: center; min-height: 56px;
-            box-shadow: 0 4px 20px {ACCENT_RED_GLOW};
-        }}
-        .tag-logo-box img {{ height: 48px; filter: brightness(0) invert(1); }}
-        .tag-header-text h1 {{
-            margin: 0; font-size: 2rem; font-weight: 800;
-            background: linear-gradient(135deg, {DARK_TEXT}, {TAG_LARANJA});
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-            letter-spacing: -0.5px;
-        }}
-        .tag-header-text p {{
-            margin: 4px 0 0 0; font-size: 0.8rem; color: {DARK_TEXT_MUTED};
-            letter-spacing: 1.5px; text-transform: uppercase; font-weight: 500;
-        }}
-        /* ── Dividers ── */
-        .tag-divider {{
-            height: 2px; border: none;
-            background: linear-gradient(90deg, {TAG_LARANJA}, {TAG_VERMELHO}, transparent);
-            margin: 16px 0 24px 0; opacity: 0.6;
-        }}
-        .tag-section-divider {{
-            height: 1px; border: none;
-            background: linear-gradient(90deg, {DARK_BORDER}, transparent);
-            margin: 32px 0 24px 0;
-        }}
-        /* ── Metric Cards (glass) ── */
-        .tag-metric-card {{
-            background: {DARK_SURFACE};
-            border: 1px solid {DARK_BORDER};
-            border-radius: 12px;
-            padding: 20px 14px; text-align: center;
-            position: relative; overflow: hidden;
-            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
-        }}
-        .tag-metric-card::before {{
-            content: ''; position: absolute; top: 0; left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, {TAG_LARANJA}, {TAG_VERMELHO});
-        }}
-        .tag-metric-card:hover {{
-            border-color: {TAG_LARANJA}40;
-            box-shadow: 0 4px 24px rgba(255,136,83,0.08);
-            transform: translateY(-1px);
-        }}
-        .tag-metric-card .value {{
-            font-size: 1.5rem; font-weight: 800;
-            color: {DARK_TEXT}; line-height: 1.15;
-            font-family: 'Inter', sans-serif;
-        }}
-        .tag-metric-card .label {{
-            font-size: 0.68rem; color: {DARK_TEXT_MUTED};
-            margin-bottom: 8px; font-weight: 600;
-            text-transform: uppercase; letter-spacing: 1px;
-        }}
-        /* ── Section titles ── */
-        .tag-section-title {{
-            font-size: 0.85rem; font-weight: 700; color: {TAG_LARANJA};
-            margin: 32px 0 12px 0; padding-bottom: 8px;
-            border-bottom: 1px solid {DARK_BORDER};
-            text-transform: uppercase; letter-spacing: 1.2px;
-            font-family: 'Inter', sans-serif;
-        }}
-        /* ── Captions ── */
-        .stCaption {{
-            font-size: 0.78rem !important; color: {DARK_TEXT_MUTED} !important;
-        }}
-        .stAlert {{
-            background: {DARK_SURFACE} !important;
-            border-color: {DARK_BORDER} !important;
-            color: {DARK_TEXT} !important;
-        }}
-        div[data-testid="stSidebar"] {{ display: none !important; }}
-        /* ── Expander ── */
-        details {{
-            background: {DARK_SURFACE} !important;
-            border: 1px solid {DARK_BORDER} !important;
-            border-radius: 10px !important;
-        }}
-        details summary {{
-            font-weight: 600 !important; color: {TAG_LARANJA} !important;
-            font-size: 0.85rem !important;
-        }}
-        /* ── Scrollbar ── */
-        ::-webkit-scrollbar {{ width: 5px; }}
-        ::-webkit-scrollbar-track {{ background: transparent; }}
-        ::-webkit-scrollbar-thumb {{ background: {DARK_BORDER}; border-radius: 3px; }}
-        ::-webkit-scrollbar-thumb:hover {{ background: {TAG_LARANJA}60; }}
-        /* ── Plotly containers ── */
-        .stPlotlyChart {{
-            background: {DARK_SURFACE} !important;
-            border: 1px solid {DARK_BORDER} !important;
-            border-radius: 12px !important;
-            padding: 8px !important;
-            margin-bottom: 16px !important;
-        }}
-        /* ── Select/Dropdown menus ── */
+
+        /* ── Dropdown / Popover menus ── */
         [data-baseweb="popover"] {{
             background: {DARK_SURFACE} !important;
             border: 1px solid {DARK_BORDER} !important;
@@ -316,20 +283,150 @@ def inject_css():
         [aria-selected="true"][role="option"] {{
             background: {TAG_VERMELHO}30 !important;
         }}
-        /* ── Status pill ── */
-        .status-live {{
-            display: inline-flex; align-items: center; gap: 6px;
-            background: rgba(107,222,151,0.12); color: #6BDE97;
-            padding: 4px 12px; border-radius: 20px; font-size: 11px;
-            font-weight: 600; letter-spacing: 0.5px;
+        /* Calendar */
+        [data-baseweb="calendar"], [data-baseweb="calendar"] div {{
+            background: {DARK_SURFACE} !important;
+            color: {DARK_TEXT} !important;
         }}
-        .status-live::before {{
-            content: ''; width: 6px; height: 6px; border-radius: 50%;
-            background: #6BDE97; animation: pulse 2s infinite;
+
+        /* ══════════════════════════════════════════════════
+           HEADER
+        ══════════════════════════════════════════════════ */
+        .tag-header {{
+            display: flex; align-items: center; gap: 20px;
+            padding: 16px 0 12px 0;
         }}
-        @keyframes pulse {{
-            0%, 100% {{ opacity: 1; }}
-            50% {{ opacity: 0.4; }}
+        .tag-logo-box {{
+            background: linear-gradient(135deg, {TAG_VERMELHO}, #8B1A3A);
+            border-radius: 14px;
+            padding: 14px 20px; display: flex; align-items: center;
+            justify-content: center; min-height: 56px;
+            box-shadow: 0 4px 20px {ACCENT_RED_GLOW};
+        }}
+        .tag-logo-box img {{ height: 48px; filter: brightness(0) invert(1); }}
+        .tag-header-text h1 {{
+            margin: 0; font-size: 2rem; font-weight: 800;
+            background: linear-gradient(135deg, #FFFFFF, {TAG_LARANJA});
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
+        }}
+        .tag-header-text p {{
+            margin: 4px 0 0 0; font-size: 0.75rem; color: #8888A8;
+            letter-spacing: 2px; text-transform: uppercase; font-weight: 500;
+        }}
+
+        /* ── Dividers ── */
+        .tag-divider {{
+            height: 2px; border: none;
+            background: linear-gradient(90deg, {TAG_LARANJA}, {TAG_VERMELHO}80, transparent);
+            margin: 12px 0 20px 0; opacity: 0.7;
+        }}
+        .tag-section-divider {{
+            height: 1px; border: none;
+            background: linear-gradient(90deg, {DARK_BORDER}, transparent);
+            margin: 32px 0 24px 0;
+        }}
+
+        /* ══════════════════════════════════════════════════
+           METRIC CARDS (glass)
+        ══════════════════════════════════════════════════ */
+        .tag-metric-card {{
+            background: {DARK_SURFACE};
+            border: 1px solid {DARK_BORDER};
+            border-radius: 12px;
+            padding: 20px 14px; text-align: center;
+            position: relative; overflow: hidden;
+            transition: all 0.3s ease;
+        }}
+        .tag-metric-card::before {{
+            content: ''; position: absolute; top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, {TAG_LARANJA}, {TAG_VERMELHO});
+        }}
+        .tag-metric-card:hover {{
+            border-color: {TAG_LARANJA}40;
+            box-shadow: 0 4px 24px rgba(255,136,83,0.08);
+            transform: translateY(-1px);
+        }}
+        .tag-metric-card .value {{
+            font-size: 1.5rem; font-weight: 800;
+            color: #F0F0F8; line-height: 1.15;
+            font-family: 'Inter', sans-serif;
+        }}
+        .tag-metric-card .label {{
+            font-size: 0.68rem; color: #9898B0;
+            margin-bottom: 8px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 1px;
+        }}
+
+        /* ── Section titles ── */
+        .tag-section-title {{
+            font-size: 0.85rem; font-weight: 700; color: {TAG_LARANJA};
+            margin: 32px 0 12px 0; padding-bottom: 8px;
+            border-bottom: 1px solid {DARK_BORDER};
+            text-transform: uppercase; letter-spacing: 1.2px;
+            font-family: 'Inter', sans-serif;
+        }}
+
+        /* ══════════════════════════════════════════════════
+           MISC ELEMENTS
+        ══════════════════════════════════════════════════ */
+        .stCaption {{
+            font-size: 0.78rem !important; color: #9898B0 !important;
+        }}
+        .stAlert {{
+            background: {DARK_SURFACE} !important;
+            border-color: {DARK_BORDER} !important;
+        }}
+        .stAlert p {{
+            color: {DARK_TEXT} !important;
+        }}
+        div[data-testid="stSidebar"] {{ display: none !important; }}
+
+        /* ── Expander ── */
+        details {{
+            background: {DARK_SURFACE} !important;
+            border: 1px solid {DARK_BORDER} !important;
+            border-radius: 10px !important;
+        }}
+        details summary {{
+            font-weight: 600 !important; color: {TAG_LARANJA} !important;
+            font-size: 0.85rem !important;
+        }}
+        details summary span {{
+            color: {TAG_LARANJA} !important;
+        }}
+
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar {{ width: 5px; }}
+        ::-webkit-scrollbar-track {{ background: transparent; }}
+        ::-webkit-scrollbar-thumb {{ background: {DARK_BORDER}; border-radius: 3px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: {TAG_LARANJA}60; }}
+
+        /* ── Plotly containers ── */
+        .stPlotlyChart {{
+            background: {DARK_SURFACE} !important;
+            border: 1px solid {DARK_BORDER} !important;
+            border-radius: 12px !important;
+            padding: 8px !important;
+            margin-bottom: 16px !important;
+        }}
+        .stPlotlyChart .modebar {{
+            background: transparent !important;
+        }}
+        .stPlotlyChart .modebar-btn path {{
+            fill: #7070888 !important;
+        }}
+
+        /* ── Labels / Radio / Checkbox ── */
+        .stRadio label, .stCheckbox label {{
+            color: {DARK_TEXT} !important;
+        }}
+        [data-testid="stMetricValue"] {{
+            color: {DARK_TEXT} !important;
+        }}
+        [data-testid="stMetricLabel"] {{
+            color: #9898B0 !important;
         }}
     </style>
     """, unsafe_allow_html=True)
@@ -339,18 +436,26 @@ def inject_css():
 # Header
 # ──────────────────────────────────────────────────────────────────────────────
 def render_header():
-    from datetime import datetime
     logo_b64 = get_logo_base64()
     logo_html = f'<div class="tag-logo-box"><img src="data:image/png;base64,{logo_b64}"></div>' if logo_b64 else ""
 
-    # Data da última atualização dos dados
+    # Data da última atualização: ler a data mais recente dos próprios dados de cotas
+    data_atualizacao = "—"
     data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
     cotas_path = os.path.join(data_dir, "cotas_consolidado.parquet")
     if os.path.exists(cotas_path):
-        mod_time = datetime.fromtimestamp(os.path.getmtime(cotas_path))
-        data_atualizacao = mod_time.strftime("%d/%m/%Y %H:%M")
-    else:
-        data_atualizacao = "—"
+        try:
+            import pyarrow.parquet as pq
+            pf = pq.read_table(cotas_path, columns=["data"])
+            col_data = pf.column("data").to_pylist()
+            if col_data:
+                max_dt = max(col_data)
+                if hasattr(max_dt, "strftime"):
+                    data_atualizacao = max_dt.strftime("%d/%m/%Y")
+                else:
+                    data_atualizacao = str(max_dt)[:10]
+        except Exception:
+            data_atualizacao = "—"
 
     st.markdown(f"""
     <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0;">
@@ -361,14 +466,11 @@ def render_header():
                 <p>Monitoramento de Fundos de Renda Variavel</p>
             </div>
         </div>
-        <div style="display: flex; align-items: center; gap: 16px;">
-            <div class="status-live">LIVE</div>
-            <div style="text-align: right;">
-                <div style="font-size: 0.65rem; color: {DARK_TEXT_MUTED}; text-transform: uppercase;
-                            letter-spacing: 1px; font-weight: 600;">Ultima atualizacao</div>
-                <div style="font-size: 0.85rem; color: {DARK_TEXT}; font-weight: 700;
-                            margin-top: 2px; font-family: 'Inter', monospace;">{data_atualizacao}</div>
-            </div>
+        <div style="text-align: right;">
+            <div style="font-size: 0.65rem; color: {DARK_TEXT_MUTED}; text-transform: uppercase;
+                        letter-spacing: 1px; font-weight: 600;">Dados ate</div>
+            <div style="font-size: 0.85rem; color: {DARK_TEXT}; font-weight: 700;
+                        margin-top: 2px; font-family: 'Inter', monospace;">{data_atualizacao}</div>
         </div>
     </div>
     <div class="tag-divider"></div>
@@ -1278,7 +1380,7 @@ def main():
 
                 bench_styles = {
                     list(BENCHMARK_CNPJS.values())[0]: dict(color=TAG_LARANJA, dash="dash"),
-                    list(BENCHMARK_CNPJS.values())[1]: dict(color="#333333", dash="dash"),
+                    list(BENCHMARK_CNPJS.values())[1]: dict(color="#58C6F5", dash="dash"),
                 }
 
                 CDI_ANUAL = 0.1315
@@ -1345,51 +1447,37 @@ def main():
                     _chart_layout(fig_dd, "", height=400, y_title="Drawdown (%)")
                     st.plotly_chart(fig_dd, use_container_width=True)
 
-                    # ─── G3: Percentil (janela móvel) ───
+                    # ─── G3: Percentil (janela móvel) — usando amostra de fundos RV ───
                     st.markdown(f'<div class="tag-section-title">Percentil — Janela {janela_label}</div>', unsafe_allow_html=True)
-                    st.caption("Posicao relativa do fundo no universo de fundos RV (0%=pior, 100%=melhor) com base no retorno acumulado na janela movel.")
+                    st.caption(f"Posicao relativa do fundo na amostra de fundos RV acompanhados (0%=pior, 100%=melhor). Janela movel de {janela_label}.")
 
-                    rolling_ret = pivot_ret[all_cols].rolling(janela_du).apply(
-                        lambda x: (1 + x).prod() - 1, raw=False
-                    )
+                    # Carregar cotas de TODOS os fundos da amostra para ranking correto
+                    all_sample_cnpjs = tuple(set(df_fundos["cnpj_norm"].dropna().tolist()) | set(BENCHMARK_CNPJS.values()))
+                    df_cotas_universe = carregar_cotas_fundos(all_sample_cnpjs, meses=120)
 
-                    df_stats = carregar_universo_stats(meses=120)
+                    if not df_cotas_universe.empty:
+                        # Pivot: data × cnpj → vl_quota
+                        pivot_univ = df_cotas_universe.pivot_table(
+                            index="data", columns="cnpj_fundo", values="vl_quota"
+                        ).sort_index().ffill()
 
-                    if not df_stats.empty and not rolling_ret.dropna(how="all").empty:
-                        df_st = df_stats.set_index("data").reindex(pivot_ret.index)
+                        # Filtrar pelo período selecionado
+                        mask_u = (pivot_univ.index >= pd.Timestamp(dt_inicio)) & (pivot_univ.index <= pd.Timestamp(dt_fim))
+                        pivot_univ = pivot_univ.loc[mask_u]
 
-                        # Calcular retorno rolling para cada percentil do universo
-                        pct_cols = ["p10", "p25", "p50", "p75", "p90"]
-                        univ_roll = {}
-                        for pc in pct_cols:
-                            if pc in df_st.columns:
-                                univ_roll[pc] = df_st[pc].rolling(janela_du, min_periods=max(1, janela_du // 2)).apply(
-                                    lambda x: (1 + x).prod() - 1, raw=False
-                                )
+                        # Retorno diário de todos os fundos
+                        ret_univ = pivot_univ.pct_change()
 
-                        def _percentil_interpolado(val, dt):
-                            """Interpola percentil real usando p10-p90 do universo."""
-                            pts = []
-                            for pc_name, pc_val in [("p10", 10), ("p25", 25), ("p50", 50), ("p75", 75), ("p90", 90)]:
-                                if pc_name in univ_roll and dt in univ_roll[pc_name].index:
-                                    v = univ_roll[pc_name].loc[dt]
-                                    if pd.notna(v):
-                                        pts.append((v, pc_val))
-                            if len(pts) < 2:
-                                return 50.0
-                            pts.sort(key=lambda x: x[0])
-                            # Interpolação linear entre os pontos conhecidos
-                            if val <= pts[0][0]:
-                                return max(0, pts[0][1] * val / pts[0][0]) if pts[0][0] != 0 else 5.0
-                            if val >= pts[-1][0]:
-                                return min(100, pts[-1][1] + (100 - pts[-1][1]) * (val - pts[-1][0]) / (abs(pts[-1][0]) + 0.0001))
-                            for k in range(len(pts) - 1):
-                                v0, p0 = pts[k]
-                                v1, p1 = pts[k + 1]
-                                if v0 <= val <= v1:
-                                    frac = (val - v0) / (v1 - v0) if v1 != v0 else 0.5
-                                    return p0 + frac * (p1 - p0)
-                            return 50.0
+                        # Rolling return (janela) para TODOS os fundos — vectorizado
+                        # Usar log returns para velocidade: log_ret.rolling().sum() → exp() - 1
+                        log_ret = np.log(1 + ret_univ)
+                        roll_log = log_ret.rolling(janela_du, min_periods=max(1, janela_du // 2)).sum()
+                        roll_ret_all = np.exp(roll_log) - 1
+
+                        # Para cada data, calcular o percentil de cada fundo vs o universo
+                        # Rank percentil: % de fundos que tiveram retorno PIOR (menor)
+                        # rank(pct=True) dá exatamente isso
+                        roll_pctl = roll_ret_all.rank(axis=1, pct=True, method="average") * 100
 
                         fig_rank = go.Figure()
                         # Quintil bands (dark theme)
@@ -1409,16 +1497,11 @@ def main():
                             )
 
                         for i, cnpj in enumerate(fund_cols + bench_cols):
+                            if cnpj not in roll_pctl.columns:
+                                continue
                             label = cnpj_to_label.get(cnpj, cnpj[:10])
                             is_bench = cnpj in bench_cols
-                            fund_roll = rolling_ret[cnpj].dropna()
-                            if fund_roll.empty:
-                                continue
-                            pctls = pd.Series(
-                                [_percentil_interpolado(val, dt) if pd.notna(val) else np.nan for dt, val in fund_roll.items()],
-                                index=fund_roll.index,
-                            )
-                            pctls = pctls.dropna()
+                            pctls = roll_pctl[cnpj].dropna()
                             if pctls.empty:
                                 continue
                             style = bench_styles.get(cnpj, {}) if is_bench else {}
@@ -1433,10 +1516,12 @@ def main():
                                 hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}<br>Percentil: %{{y:.0f}}%<extra></extra>",
                             ))
 
+                        n_fundos_univ = roll_pctl.count(axis=1).median()
                         fig_rank.add_hline(y=50, line_dash="dot", line_color="#999", line_width=1)
                         _chart_layout(fig_rank, "", height=450, y_title="Percentil", y_suffix="%")
                         fig_rank.update_yaxes(range=[0, 100])
                         st.plotly_chart(fig_rank, use_container_width=True)
+                        st.caption(f"Universo: ~{int(n_fundos_univ)} fundos RV da amostra acompanhada.")
                     else:
                         st.info("Dados do universo insuficientes para calcular o percentil.")
 
@@ -1719,6 +1804,13 @@ def main():
                                     if down_m.sum() > 2:
                                         down_cap = monthly_f.loc[common_m][down_m].mean() / monthly_b.loc[common_m][down_m].mean() * 100
 
+                        # UPI vs IBOV: (excess return) / ulcer index
+                        upi_vs_ibov = np.nan
+                        if ibov_cnpj in pivot_ret.columns and cnpj != ibov_cnpj:
+                            excess_total = ret_anual - ((1 + pivot_ret[ibov_cnpj].dropna()).prod() ** (252 / max(1, len(pivot_ret[ibov_cnpj].dropna()))) - 1)
+                            if ulcer > 0:
+                                upi_vs_ibov = (excess_total * 100) / ulcer
+
                         label = cnpj_to_label.get(cnpj, cnpj[:10])
                         row_data = {
                             "Fundo": label,
@@ -1729,6 +1821,7 @@ def main():
                             "Max DD": f"{max_dd:.1f}%",
                             "Calmar": f"{calmar:.2f}",
                             "Ulcer": f"{ulcer:.1f}",
+                            "UPI vs IBOV": f"{upi_vs_ibov:.2f}" if pd.notna(upi_vs_ibov) else "—",
                         }
                         if pd.notna(ir):
                             row_data["IR"] = f"{ir:.2f}"
@@ -1786,6 +1879,65 @@ def main():
                     _chart_layout(fig_sharpe, "", height=400, y_title="Sharpe Ratio", y_suffix="")
                     st.plotly_chart(fig_sharpe, use_container_width=True)
 
+                    # ─── G10: Rolling UPI vs IBOVESPA (Ulcer Performance Index) ───
+                    st.markdown(f'<div class="tag-section-title">UPI vs IBOVESPA Rolling — Janela {janela_label}</div>', unsafe_allow_html=True)
+                    st.caption(f"Ulcer Performance Index: (Retorno excedente sobre IBOV) / Ulcer Index. Quanto maior, melhor o retorno ajustado pelo risco de drawdown.")
+
+                    if ibov_cnpj in pivot_ret.columns:
+                        fig_upi = go.Figure()
+                        bench_cum = (1 + pivot_ret[ibov_cnpj]).cumprod()
+
+                        for i, cnpj in enumerate(fund_cols):
+                            if cnpj not in pivot_ret.columns:
+                                continue
+                            label = cnpj_to_label.get(cnpj, cnpj[:10])
+                            fund_cum = (1 + pivot_ret[cnpj]).cumprod()
+                            # Rolling excess return vs IBOV
+                            excess_ret = pivot_ret[cnpj] - pivot_ret[ibov_cnpj]
+                            roll_excess = excess_ret.rolling(janela_du).apply(
+                                lambda x: (1 + x).prod() - 1, raw=False
+                            )
+                            # Rolling Ulcer Index do fundo
+                            def _rolling_ulcer(series, window):
+                                cum = (1 + series).cumprod()
+                                dd = (cum / cum.cummax() - 1) * 100
+                                return dd.rolling(window).apply(lambda x: np.sqrt((x**2).mean()), raw=True)
+                            roll_ulcer = _rolling_ulcer(pivot_ret[cnpj], janela_du)
+                            # UPI = excess return / ulcer index
+                            roll_upi = (roll_excess * 100) / roll_ulcer.replace(0, np.nan)
+                            roll_upi = roll_upi.dropna()
+                            # Clip extremes for readability
+                            roll_upi = roll_upi.clip(-5, 5)
+                            fig_upi.add_trace(go.Scatter(
+                                x=roll_upi.index, y=roll_upi.values,
+                                name=label, mode="lines",
+                                line=dict(width=2, color=TAG_CHART_COLORS[i % len(TAG_CHART_COLORS)]),
+                                hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}<br>UPI: %{{y:.2f}}<extra></extra>",
+                            ))
+
+                        for cnpj in bench_cols:
+                            if cnpj == ibov_cnpj or cnpj not in pivot_ret.columns:
+                                continue
+                            label = cnpj_to_label.get(cnpj, cnpj[:10])
+                            style = bench_styles.get(cnpj, dict(color="#999", dash="dash"))
+                            excess_ret = pivot_ret[cnpj] - pivot_ret[ibov_cnpj]
+                            roll_excess = excess_ret.rolling(janela_du).apply(
+                                lambda x: (1 + x).prod() - 1, raw=False
+                            )
+                            roll_ulcer = _rolling_ulcer(pivot_ret[cnpj], janela_du)
+                            roll_upi = (roll_excess * 100) / roll_ulcer.replace(0, np.nan)
+                            roll_upi = roll_upi.dropna().clip(-5, 5)
+                            fig_upi.add_trace(go.Scatter(
+                                x=roll_upi.index, y=roll_upi.values,
+                                name=label, mode="lines",
+                                line=dict(width=1.5, **style),
+                                hovertemplate=f"<b>{label}</b><br>%{{x|%d/%m/%Y}}<br>UPI: %{{y:.2f}}<extra></extra>",
+                            ))
+
+                        fig_upi.add_hline(y=0, line_dash="dot", line_color="#ccc", line_width=1)
+                        _chart_layout(fig_upi, "", height=400, y_title="UPI vs IBOV", y_suffix="")
+                        st.plotly_chart(fig_upi, use_container_width=True)
+
     # ══════════════════════════════════════════════════════════════════════
     # TAB 6: DESTAQUES (Rankings multi-janela — inspirado relatório RV Long Only)
     # ══════════════════════════════════════════════════════════════════════
@@ -1822,17 +1974,41 @@ def main():
                 max_date = pivot_q.index.max()
                 results = {}
 
-                # MTD: retorno desde o 1o dia útil do mês
-                month_start = pivot_q.loc[pivot_q.index.month == max_date.month].index.min()
-                if month_start is not None:
-                    q_start = pivot_q.loc[month_start]
+                # MTD: retorno desde o 1o dia útil do mês ATUAL
+                month_mask = (pivot_q.index.month == max_date.month) & (pivot_q.index.year == max_date.year)
+                month_dates = pivot_q.loc[month_mask].index
+                if len(month_dates) >= 2:
+                    # Usar a SEGUNDA data do mês (primeira cota é base, retorno começa no dia seguinte)
+                    # Ou seja, retorno = cota_fim / cota_inicio - 1, onde inicio = ultimo dia do mês anterior
+                    month_start = month_dates.min()
+                    # Pegar o dia útil anterior ao inicio do mês para base correta
+                    dates_before = pivot_q.loc[pivot_q.index < month_start].index
+                    if len(dates_before) > 0:
+                        base_date = dates_before.max()  # último dia útil do mês anterior
+                        q_start = pivot_q.loc[base_date]
+                    else:
+                        q_start = pivot_q.loc[month_start]
                     q_end = pivot_q.loc[max_date]
                     results["MTD"] = ((q_end / q_start) - 1) * 100
+                elif len(month_dates) == 1:
+                    # Só 1 dia no mês — usar dia anterior como base
+                    dates_before = pivot_q.loc[pivot_q.index < month_dates[0]].index
+                    if len(dates_before) > 0:
+                        q_start = pivot_q.loc[dates_before.max()]
+                        q_end = pivot_q.loc[max_date]
+                        results["MTD"] = ((q_end / q_start) - 1) * 100
 
-                # YTD: retorno desde o 1o dia útil do ano
-                year_start = pivot_q.loc[pivot_q.index.year == max_date.year].index.min()
-                if year_start is not None:
-                    q_start = pivot_q.loc[year_start]
+                # YTD: retorno desde o último dia útil do ano anterior
+                year_mask = pivot_q.index.year == max_date.year
+                year_dates = pivot_q.loc[year_mask].index
+                if len(year_dates) >= 1:
+                    year_first = year_dates.min()
+                    dates_before_year = pivot_q.loc[pivot_q.index < year_first].index
+                    if len(dates_before_year) > 0:
+                        base_date = dates_before_year.max()
+                        q_start = pivot_q.loc[base_date]
+                    else:
+                        q_start = pivot_q.loc[year_first]
                     q_end = pivot_q.loc[max_date]
                     results["YTD"] = ((q_end / q_start) - 1) * 100
 
@@ -1929,10 +2105,10 @@ def main():
                     ]:
                         stat_rows.append((label_stat, calc_fn, TAG_LARANJA))
 
-                    # Benchmarks
-                    for b_cnpj, b_name in BENCHMARK_CNPJS.items():
+                    # Benchmarks (BENCHMARK_CNPJS: name → cnpj)
+                    for b_name, b_cnpj in BENCHMARK_CNPJS.items():
                         if b_cnpj in df_ret_all.index:
-                            stat_rows.append((b_name, None, DARK_TEXT))
+                            stat_rows.append((b_name, None, "#58C6F5"))
 
                     stat_rows.extend([
                         ("Mediana", lambda s: s.median(), DARK_TEXT),
@@ -1950,8 +2126,8 @@ def main():
                                     continue
                                 v = sr_fn(vals)
                             else:
-                                # Benchmark
-                                b_cnpj = [c for c, n in BENCHMARK_CNPJS.items() if n == sr_label]
+                                # Benchmark: BENCHMARK_CNPJS maps name→cnpj
+                                b_cnpj = [cnpj_v for name_k, cnpj_v in BENCHMARK_CNPJS.items() if name_k == sr_label]
                                 if b_cnpj and b_cnpj[0] in df_ret_all.index and col in df_ret_all.columns:
                                     v = df_ret_all.loc[b_cnpj[0], col]
                                     if pd.isna(v):
@@ -1980,6 +2156,26 @@ def main():
                     # ── 3. Top 20 e Bottom 20 ──
                     col_top, col_bot = st.columns(2)
 
+                    # Helper: render benchmark rows for top/bottom tables
+                    def _render_bench_rows(janelas_disp_inner, janela_rank_inner):
+                        bench_html = ""
+                        for b_name, b_cnpj in BENCHMARK_CNPJS.items():
+                            if b_cnpj not in df_ret_all.index:
+                                continue
+                            bench_html += f'<tr style="background:rgba(88,198,245,0.06);border-bottom:2px solid {DARK_BORDER};">'
+                            bench_html += f'<td style="padding:6px 10px;text-align:center;color:#58C6F5;font-size:10px;font-weight:700;">▸</td>'
+                            bench_html += f'<td style="padding:6px 10px;font-size:12px;color:#58C6F5;font-weight:700;white-space:nowrap;">{b_name}</td>'
+                            for jcol in janelas_disp_inner:
+                                v = df_ret_all.loc[b_cnpj, jcol] if jcol in df_ret_all.columns else np.nan
+                                if pd.isna(v):
+                                    bench_html += f'<td style="padding:6px 8px;text-align:right;color:{DARK_TEXT_MUTED};font-size:11px;">—</td>'
+                                else:
+                                    neg = "color:#FF6B6B;" if v < 0 else ""
+                                    bold = "font-weight:700;" if jcol == janela_rank_inner else ""
+                                    bench_html += f'<td style="padding:6px 8px;text-align:right;font-size:11px;color:#58C6F5;{neg}{bold}">{v:.1f}%</td>'
+                            bench_html += '</tr>'
+                        return bench_html
+
                     with col_top:
                         st.markdown(f'<div class="tag-section-title" style="color:#6BDE97;">Melhores — {janela_rank}</div>', unsafe_allow_html=True)
                         top20 = df_funds_only.nlargest(20, janela_rank)[[janela_rank, "nome"]].copy()
@@ -1995,6 +2191,9 @@ def main():
                             bold = "font-weight:800;" if jcol == janela_rank else ""
                             top_html += f'<th style="padding:8px 8px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}">{jcol}</th>'
                         top_html += '</tr></thead><tbody>'
+
+                        # Benchmark rows first (reference)
+                        top_html += _render_bench_rows(janelas_disp, janela_rank)
 
                         for rank_i, (cnpj_row, row) in enumerate(top20.iterrows()):
                             is_selected = cnpj_row in sel_cnpjs_set
@@ -2033,6 +2232,9 @@ def main():
                             bold = "font-weight:800;" if jcol == janela_rank else ""
                             bot_html += f'<th style="padding:8px 8px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}">{jcol}</th>'
                         bot_html += '</tr></thead><tbody>'
+
+                        # Benchmark rows first (reference)
+                        bot_html += _render_bench_rows(janelas_disp, janela_rank)
 
                         for rank_i, (cnpj_row, row) in enumerate(bot20.iterrows()):
                             is_selected = cnpj_row in sel_cnpjs_set
@@ -2134,7 +2336,7 @@ def main():
                                                    annotation_font_color=DARK_TEXT, annotation_font_size=10)
 
                         # Marcar benchmarks
-                        for b_cnpj, b_name in BENCHMARK_CNPJS.items():
+                        for b_name, b_cnpj in BENCHMARK_CNPJS.items():
                             if b_cnpj in df_ret_all.index and janela_rank in df_ret_all.columns:
                                 bv = df_ret_all.loc[b_cnpj, janela_rank]
                                 if pd.notna(bv):
