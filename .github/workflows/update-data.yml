@@ -1,0 +1,45 @@
+name: Atualização Diária de Dados
+
+on:
+  schedule:
+    # 9:45 BRT = 12:45 UTC (seg-sex)
+    - cron: '45 12 * * 1-5'
+  workflow_dispatch:  # permite execução manual pelo GitHub
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repositório
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependências
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Executar export em modo CI
+        run: python export_data.py --ci
+
+      - name: Commit e push dos dados atualizados
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/*.parquet
+          # Só commita se houver mudanças
+          if git diff --staged --quiet; then
+            echo "Sem alterações nos dados. Nada a commitar."
+          else
+            git commit -m "data: atualização automática $(date -u +'%Y-%m-%d %H:%M UTC')"
+            git push
+          fi

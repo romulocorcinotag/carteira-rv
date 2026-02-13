@@ -7,9 +7,10 @@ Nas próximas execuções:
   - CVM: só baixa meses que ainda não estão no parquet
   - Reconstrói consolidado com dedup
 
-Executar localmente quando quiser atualizar os dados:
+Modos de execução:
     python export_data.py          # incremental (padrão)
     python export_data.py --full   # força reprocessamento completo
+    python export_data.py --ci     # modo CI/GitHub Actions (sem XMLs/Excel)
 
 Os parquets ficam em data/ e devem ser commitados no repo.
 """
@@ -107,37 +108,61 @@ def _dedup_consolidado(df_posicoes, df_fundos):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--full", action="store_true", help="Força reprocessamento completo")
+    parser.add_argument("--ci", action="store_true", help="Modo CI/GitHub Actions (sem XMLs/Excel)")
     args = parser.parse_args()
 
     os.makedirs(DATA_DIR, exist_ok=True)
 
     print("=" * 60)
-    mode = "COMPLETO" if args.full else "INCREMENTAL"
+    if args.ci:
+        mode = "CI/GITHUB ACTIONS"
+    elif args.full:
+        mode = "COMPLETO"
+    else:
+        mode = "INCREMENTAL"
     print(f"EXPORTACAO DE DADOS ({mode})")
     print("=" * 60)
 
-    # ── 1. Fundos RV (sempre atualiza) ──
-    print("\n[1/6] Carregando fundos RV...")
-    t0 = time.time()
-    df_fundos = carregar_fundos_rv()
-    print(f"  -> {len(df_fundos)} fundos em {time.time()-t0:.1f}s")
-    df_fundos.to_parquet(os.path.join(DATA_DIR, "fundos_rv.parquet"), index=False)
+    # ── 1. Fundos RV ──
+    fundos_path = os.path.join(DATA_DIR, "fundos_rv.parquet")
+    if args.ci:
+        # CI: usa parquet existente (Base Geral.xlsm não disponível)
+        print("\n[1/6] Carregando fundos RV do parquet existente...")
+        if not os.path.exists(fundos_path):
+            print("  ERRO: fundos_rv.parquet não encontrado! Execute localmente primeiro.")
+            sys.exit(1)
+        df_fundos = pd.read_parquet(fundos_path)
+        print(f"  -> {len(df_fundos)} fundos (cache)")
+    else:
+        print("\n[1/6] Carregando fundos RV...")
+        t0 = time.time()
+        df_fundos = carregar_fundos_rv()
+        print(f"  -> {len(df_fundos)} fundos em {time.time()-t0:.1f}s")
+        df_fundos.to_parquet(fundos_path, index=False)
 
     cnpjs_direto = set(df_fundos["cnpj_norm"].dropna().tolist())
     cnpjs_foco = set(df_fundos["cnpj_foco_norm"].dropna().tolist()) - {""}
     todos_cnpjs = tuple(cnpjs_direto | cnpjs_foco)
 
-    # ── 2. XMLs (incremental: só novos) ──
+    # ── 2. XMLs ──
     xml_path = os.path.join(DATA_DIR, "posicoes_xml.parquet")
-    if not args.full and os.path.exists(xml_path):
+    if args.ci:
+        # CI: usa parquet existente (XMLs no Google Drive não disponíveis)
+        print("\n[2/6] XMLs: usando parquet existente (modo CI)...")
+        if os.path.exists(xml_path):
+            df_xml = pd.read_parquet(xml_path)
+            df_xml["data"] = pd.to_datetime(df_xml["data"])
+            print(f"  -> {len(df_xml)} registros XML (cache)")
+        else:
+            df_xml = pd.DataFrame()
+            print("  -> Sem dados XML (parquet não encontrado)")
+    elif not args.full and os.path.exists(xml_path):
         print("\n[2/6] XMLs: verificando incrementalmente...")
         df_xml_old = pd.read_parquet(xml_path)
         df_xml_old["data"] = pd.to_datetime(df_xml_old["data"])
         old_max_date = df_xml_old["data"].max()
         print(f"  Dados existentes ate: {old_max_date}")
 
-        # Reprocessar tudo (XMLs são rápidos ~14s, e garantem consistência)
-        # mas só re-exportar se houver dados novos
         t0 = time.time()
         df_xml_new = carregar_dados_xml(todos_cnpjs)
         new_max_date = df_xml_new["data"].max() if not df_xml_new.empty else old_max_date

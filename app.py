@@ -12,7 +12,7 @@ from data_loader import (
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Paleta TAG Investimentos (conforme Guia de Marca 2021)
+# Paleta TAG Investimentos — Dark Futurista
 # ──────────────────────────────────────────────────────────────────────────────
 TAG_VERMELHO = "#630D24"
 TAG_OFFWHITE = "#E6E4DB"
@@ -21,19 +21,28 @@ TAG_BRANCO = "#FFFFFF"
 TAG_CINZA_ESCURO = "#2C1A1A"
 TAG_CINZA_MEDIO = "#6A6864"
 TAG_AZUL_ESCURO = "#002A6E"
-# Paleta de apoio para gráficos e tabelas (9 cores do guia de marca)
+# Dark theme tokens
+DARK_BG = "#0A0A0F"            # Fundo principal quase preto
+DARK_SURFACE = "#12121A"       # Cards, containers
+DARK_SURFACE_2 = "#1A1A25"     # Elevação secundária
+DARK_BORDER = "#2A2A3A"        # Bordas sutis
+DARK_TEXT = "#E8E8F0"          # Texto principal
+DARK_TEXT_MUTED = "#8888A0"    # Texto secundário
+ACCENT_GLOW = "#FF885340"      # Laranja com glow
+ACCENT_RED_GLOW = "#630D2450"  # Vermelho com glow
+# Paleta de apoio para gráficos (cores vibrantes sobre fundo escuro)
 TAG_CHART_COLORS = [
-    "#630D24",  # Vermelho vinho (principal)
-    "#FF8853",  # Laranja
-    "#002A6E",  # Azul escuro
+    "#FF8853",  # Laranja (alta visibilidade no dark)
     "#5C85F7",  # Azul
-    "#58C6F5",  # Azul claro
-    "#A485F2",  # Lilás
     "#6BDE97",  # Verde
+    "#A485F2",  # Lilás
+    "#58C6F5",  # Azul claro
     "#FFBB00",  # Amarelo
     "#ED5A6E",  # Rosa
+    "#FF6B6B",  # Coral
     "#477C88",  # Teal
-    "#6A6864",  # Cinza
+    "#C4B5FD",  # Lavanda
+    "#34D399",  # Esmeralda
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -60,166 +69,268 @@ def get_logo_base64():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# CSS (alinhado ao Guia de Marca TAG Investimentos)
+# CSS — Dark Futurista com glassmorphism
 # ──────────────────────────────────────────────────────────────────────────────
 def inject_css():
     st.markdown(f"""
     <style>
-        /* ── Base & Tipografia ── */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        /* ── Base Dark ── */
         .stApp {{
-            font-family: 'Tahoma', 'Inter', 'Segoe UI', sans-serif;
-            background-color: {TAG_OFFWHITE} !important;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+            background: {DARK_BG} !important;
+            color: {DARK_TEXT} !important;
+        }}
+        .stApp::before {{
+            content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+            background: radial-gradient(ellipse at 20% 0%, {ACCENT_RED_GLOW} 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 100%, rgba(88,198,245,0.06) 0%, transparent 50%);
+            pointer-events: none; z-index: 0;
         }}
         .stMainBlockContainer {{
-            max-width: 1280px;
-            padding-top: 1rem !important;
+            max-width: 1360px;
+            padding-top: 0.5rem !important;
         }}
         .stMarkdown p, .stMarkdown li {{
-            font-size: 0.95rem !important;
-            line-height: 1.65 !important;
-            color: {TAG_CINZA_ESCURO} !important;
+            font-size: 0.9rem !important;
+            line-height: 1.6 !important;
+            color: {DARK_TEXT_MUTED} !important;
+        }}
+        h1, h2, h3 {{
+            color: {DARK_TEXT} !important;
+            font-family: 'Inter', sans-serif !important;
         }}
         /* ── Tabs ── */
         .stTabs [data-baseweb="tab-list"] {{
-            gap: 0; background: transparent;
-            border-bottom: 2px solid {TAG_VERMELHO}18;
+            gap: 2px; background: {DARK_SURFACE};
+            border-radius: 10px; padding: 4px;
+            border: 1px solid {DARK_BORDER};
         }}
         .stTabs [data-baseweb="tab"] {{
-            font-size: 13px !important; font-weight: 500 !important;
-            padding: 12px 24px !important; color: {TAG_CINZA_MEDIO} !important;
-            text-transform: uppercase !important; letter-spacing: 0.5px !important;
-            border-bottom: 3px solid transparent !important;
-            transition: all 0.2s ease !important;
+            font-size: 12px !important; font-weight: 600 !important;
+            padding: 10px 20px !important; color: {DARK_TEXT_MUTED} !important;
+            text-transform: uppercase !important; letter-spacing: 0.8px !important;
+            border-radius: 8px !important; border: none !important;
+            transition: all 0.25s cubic-bezier(0.4,0,0.2,1) !important;
+            background: transparent !important;
         }}
         .stTabs [data-baseweb="tab"]:hover {{
-            color: {TAG_VERMELHO} !important;
+            color: {TAG_LARANJA} !important;
+            background: {DARK_SURFACE_2} !important;
         }}
         .stTabs [aria-selected="true"] {{
-            font-weight: 700 !important; color: {TAG_VERMELHO} !important;
-            border-bottom: 3px solid {TAG_VERMELHO} !important;
+            font-weight: 700 !important; color: {DARK_BG} !important;
+            background: linear-gradient(135deg, {TAG_LARANJA}, #FF6B3D) !important;
+            box-shadow: 0 2px 12px {ACCENT_GLOW} !important;
         }}
-        /* ── DataFrames & Tabelas ── */
+        .stTabs [data-baseweb="tab-highlight"],
+        .stTabs [data-baseweb="tab-border"] {{
+            display: none !important;
+        }}
+        /* ── DataFrames ── */
+        .stDataFrame {{
+            border-radius: 10px !important;
+            overflow: hidden !important;
+        }}
         .stDataFrame th {{
-            font-size: 11px !important; font-weight: 600 !important;
+            font-size: 10px !important; font-weight: 700 !important;
             padding: 10px 14px !important; text-transform: uppercase !important;
-            letter-spacing: 0.3px !important;
-            background: {TAG_VERMELHO} !important; color: {TAG_BRANCO} !important;
+            letter-spacing: 0.6px !important;
+            background: {DARK_SURFACE} !important; color: {TAG_LARANJA} !important;
+            border-bottom: 1px solid {DARK_BORDER} !important;
         }}
         .stDataFrame td {{
             padding: 8px 14px !important; font-size: 13px !important;
-            color: {TAG_CINZA_ESCURO} !important;
+            color: {DARK_TEXT} !important;
+            background: {DARK_SURFACE} !important;
+            border-bottom: 1px solid {DARK_BORDER}80 !important;
         }}
+        /* ── Markdown tables ── */
         .stMarkdown table {{
             width: 100% !important; border-collapse: collapse !important;
-            margin: 12px 0 !important; border-radius: 6px !important;
+            margin: 12px 0 !important; border-radius: 10px !important;
             overflow: hidden !important;
         }}
         .stMarkdown table th {{
-            background: {TAG_VERMELHO} !important; color: {TAG_BRANCO} !important;
+            background: {DARK_SURFACE} !important; color: {TAG_LARANJA} !important;
             padding: 11px 16px !important; text-align: left !important;
-            font-weight: 600 !important; font-size: 11px !important;
-            text-transform: uppercase !important; letter-spacing: 0.4px !important;
+            font-weight: 700 !important; font-size: 10px !important;
+            text-transform: uppercase !important; letter-spacing: 0.6px !important;
+            border-bottom: 1px solid {DARK_BORDER} !important;
         }}
         .stMarkdown table td {{
-            padding: 10px 16px !important; border-bottom: 1px solid {TAG_OFFWHITE} !important;
-            font-size: 13px !important; color: {TAG_CINZA_ESCURO} !important;
+            padding: 10px 16px !important; border-bottom: 1px solid {DARK_BORDER}60 !important;
+            font-size: 13px !important; color: {DARK_TEXT} !important;
+            background: transparent !important;
         }}
         .stMarkdown table tr:nth-child(even) td {{
-            background: #f8f7f3 !important;
+            background: {DARK_SURFACE_2}80 !important;
         }}
         .stMarkdown table tr:hover td {{
-            background: {TAG_VERMELHO}08 !important;
+            background: {DARK_SURFACE_2} !important;
         }}
-        /* ── Inputs & Selectboxes ── */
+        /* ── Inputs (dark) ── */
         .stSelectbox > div > div,
         .stMultiSelect > div > div,
         .stDateInput > div > div {{
-            border-color: {TAG_VERMELHO}30 !important;
-            border-radius: 6px !important;
+            background: {DARK_SURFACE} !important;
+            border-color: {DARK_BORDER} !important;
+            border-radius: 8px !important;
+            color: {DARK_TEXT} !important;
+        }}
+        .stSelectbox label, .stMultiSelect label, .stDateInput label {{
+            color: {DARK_TEXT_MUTED} !important;
+            font-size: 11px !important; text-transform: uppercase !important;
+            letter-spacing: 0.5px !important; font-weight: 600 !important;
         }}
         .stSelectbox > div > div:focus-within,
         .stMultiSelect > div > div:focus-within {{
-            border-color: {TAG_VERMELHO} !important;
-            box-shadow: 0 0 0 1px {TAG_VERMELHO}40 !important;
+            border-color: {TAG_LARANJA} !important;
+            box-shadow: 0 0 0 2px {ACCENT_GLOW} !important;
         }}
         /* ── Multiselect pills ── */
         span[data-baseweb="tag"] {{
-            background: {TAG_VERMELHO} !important; color: {TAG_BRANCO} !important;
-            border-radius: 4px !important; font-size: 12px !important;
+            background: linear-gradient(135deg, {TAG_VERMELHO}, #8B1A3A) !important;
+            color: {TAG_BRANCO} !important;
+            border-radius: 6px !important; font-size: 11px !important;
+            font-weight: 600 !important;
         }}
         /* ── Header ── */
         .tag-header {{
             display: flex; align-items: center; gap: 20px;
-            padding: 16px 0 12px 0;
+            padding: 20px 0 16px 0;
         }}
         .tag-logo-box {{
-            background: {TAG_VERMELHO}; border-radius: 10px;
-            padding: 12px 18px; display: flex; align-items: center;
-            justify-content: center; min-height: 52px;
+            background: linear-gradient(135deg, {TAG_VERMELHO}, #8B1A3A);
+            border-radius: 14px;
+            padding: 14px 20px; display: flex; align-items: center;
+            justify-content: center; min-height: 56px;
+            box-shadow: 0 4px 20px {ACCENT_RED_GLOW};
         }}
-        .tag-logo-box img {{ height: 52px; filter: brightness(0) invert(1); }}
+        .tag-logo-box img {{ height: 48px; filter: brightness(0) invert(1); }}
         .tag-header-text h1 {{
-            margin: 0; font-size: 2.1rem; font-weight: 700;
-            color: {TAG_VERMELHO}; letter-spacing: -0.3px;
+            margin: 0; font-size: 2rem; font-weight: 800;
+            background: linear-gradient(135deg, {DARK_TEXT}, {TAG_LARANJA});
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            letter-spacing: -0.5px;
         }}
         .tag-header-text p {{
-            margin: 2px 0 0 0; font-size: 0.9rem; color: {TAG_CINZA_MEDIO};
-            letter-spacing: 0.2px;
+            margin: 4px 0 0 0; font-size: 0.8rem; color: {DARK_TEXT_MUTED};
+            letter-spacing: 1.5px; text-transform: uppercase; font-weight: 500;
         }}
-        /* ── Grafismo TAG (linha diagonal ascendente) ── */
+        /* ── Dividers ── */
         .tag-divider {{
-            height: 3px; border: none;
-            background: linear-gradient(135deg, {TAG_VERMELHO} 0%, {TAG_LARANJA} 40%, transparent 100%);
-            margin: 12px 0 20px 0;
+            height: 2px; border: none;
+            background: linear-gradient(90deg, {TAG_LARANJA}, {TAG_VERMELHO}, transparent);
+            margin: 16px 0 24px 0; opacity: 0.6;
         }}
         .tag-section-divider {{
             height: 1px; border: none;
-            background: linear-gradient(90deg, {TAG_VERMELHO}20, transparent);
-            margin: 28px 0 20px 0;
+            background: linear-gradient(90deg, {DARK_BORDER}, transparent);
+            margin: 32px 0 24px 0;
         }}
-        /* ── Cards de metricas ── */
+        /* ── Metric Cards (glass) ── */
         .tag-metric-card {{
-            background: {TAG_BRANCO}; border-radius: 8px;
-            padding: 18px 14px; text-align: center;
-            border-top: 3px solid {TAG_VERMELHO};
-            box-shadow: 0 1px 8px rgba(0,0,0,0.05);
-            transition: box-shadow 0.2s ease;
+            background: {DARK_SURFACE};
+            border: 1px solid {DARK_BORDER};
+            border-radius: 12px;
+            padding: 20px 14px; text-align: center;
+            position: relative; overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+        }}
+        .tag-metric-card::before {{
+            content: ''; position: absolute; top: 0; left: 0; right: 0;
+            height: 2px;
+            background: linear-gradient(90deg, {TAG_LARANJA}, {TAG_VERMELHO});
         }}
         .tag-metric-card:hover {{
-            box-shadow: 0 3px 16px rgba(99,13,36,0.1);
+            border-color: {TAG_LARANJA}40;
+            box-shadow: 0 4px 24px rgba(255,136,83,0.08);
+            transform: translateY(-1px);
         }}
         .tag-metric-card .value {{
-            font-size: 1.65rem; font-weight: 700;
-            color: {TAG_VERMELHO}; line-height: 1.15;
+            font-size: 1.5rem; font-weight: 800;
+            color: {DARK_TEXT}; line-height: 1.15;
+            font-family: 'Inter', sans-serif;
         }}
         .tag-metric-card .label {{
-            font-size: 0.78rem; color: {TAG_CINZA_MEDIO};
-            margin-top: 6px; font-weight: 500;
-            text-transform: uppercase; letter-spacing: 0.3px;
+            font-size: 0.68rem; color: {DARK_TEXT_MUTED};
+            margin-bottom: 8px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 1px;
         }}
         /* ── Section titles ── */
         .tag-section-title {{
-            font-size: 1.05rem; font-weight: 700; color: {TAG_VERMELHO};
-            margin: 28px 0 10px 0; padding-bottom: 8px;
-            border-bottom: 2px solid {TAG_VERMELHO}15;
-            text-transform: uppercase; letter-spacing: 0.4px;
+            font-size: 0.85rem; font-weight: 700; color: {TAG_LARANJA};
+            margin: 32px 0 12px 0; padding-bottom: 8px;
+            border-bottom: 1px solid {DARK_BORDER};
+            text-transform: uppercase; letter-spacing: 1.2px;
+            font-family: 'Inter', sans-serif;
         }}
-        /* ── Captions e info ── */
-        .stCaption, .stAlert {{
-            font-size: 0.82rem !important;
+        /* ── Captions ── */
+        .stCaption {{
+            font-size: 0.78rem !important; color: {DARK_TEXT_MUTED} !important;
         }}
-        /* ── Esconde sidebar ── */
+        .stAlert {{
+            background: {DARK_SURFACE} !important;
+            border-color: {DARK_BORDER} !important;
+            color: {DARK_TEXT} !important;
+        }}
         div[data-testid="stSidebar"] {{ display: none !important; }}
         /* ── Expander ── */
-        details summary {{
-            font-weight: 600 !important; color: {TAG_VERMELHO} !important;
-            font-size: 0.9rem !important;
+        details {{
+            background: {DARK_SURFACE} !important;
+            border: 1px solid {DARK_BORDER} !important;
+            border-radius: 10px !important;
         }}
-        /* ── Scrollbar sutil ── */
-        ::-webkit-scrollbar {{ width: 6px; }}
+        details summary {{
+            font-weight: 600 !important; color: {TAG_LARANJA} !important;
+            font-size: 0.85rem !important;
+        }}
+        /* ── Scrollbar ── */
+        ::-webkit-scrollbar {{ width: 5px; }}
         ::-webkit-scrollbar-track {{ background: transparent; }}
-        ::-webkit-scrollbar-thumb {{ background: {TAG_VERMELHO}30; border-radius: 3px; }}
-        ::-webkit-scrollbar-thumb:hover {{ background: {TAG_VERMELHO}60; }}
+        ::-webkit-scrollbar-thumb {{ background: {DARK_BORDER}; border-radius: 3px; }}
+        ::-webkit-scrollbar-thumb:hover {{ background: {TAG_LARANJA}60; }}
+        /* ── Plotly containers ── */
+        .stPlotlyChart {{
+            background: {DARK_SURFACE} !important;
+            border: 1px solid {DARK_BORDER} !important;
+            border-radius: 12px !important;
+            padding: 8px !important;
+            margin-bottom: 16px !important;
+        }}
+        /* ── Select/Dropdown menus ── */
+        [data-baseweb="popover"] {{
+            background: {DARK_SURFACE} !important;
+            border: 1px solid {DARK_BORDER} !important;
+        }}
+        [data-baseweb="menu"] {{
+            background: {DARK_SURFACE} !important;
+        }}
+        [role="option"] {{
+            color: {DARK_TEXT} !important;
+        }}
+        [role="option"]:hover {{
+            background: {DARK_SURFACE_2} !important;
+        }}
+        [aria-selected="true"][role="option"] {{
+            background: {TAG_VERMELHO}30 !important;
+        }}
+        /* ── Status pill ── */
+        .status-live {{
+            display: inline-flex; align-items: center; gap: 6px;
+            background: rgba(107,222,151,0.12); color: #6BDE97;
+            padding: 4px 12px; border-radius: 20px; font-size: 11px;
+            font-weight: 600; letter-spacing: 0.5px;
+        }}
+        .status-live::before {{
+            content: ''; width: 6px; height: 6px; border-radius: 50%;
+            background: #6BDE97; animation: pulse 2s infinite;
+        }}
+        @keyframes pulse {{
+            0%, 100% {{ opacity: 1; }}
+            50% {{ opacity: 0.4; }}
+        }}
     </style>
     """, unsafe_allow_html=True)
 
@@ -242,19 +353,22 @@ def render_header():
         data_atualizacao = "—"
 
     st.markdown(f"""
-    <div style="display: flex; align-items: center; justify-content: space-between;">
+    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0;">
         <div class="tag-header">
             {logo_html}
             <div class="tag-header-text">
                 <h1>Carteira RV</h1>
-                <p>Evolucao de Carteiras dos Fundos de Renda Variavel</p>
+                <p>Monitoramento de Fundos de Renda Variavel</p>
             </div>
         </div>
-        <div style="text-align: right; padding-right: 4px;">
-            <div style="font-size: 0.7rem; color: {TAG_CINZA_MEDIO}; text-transform: uppercase;
-                        letter-spacing: 0.5px; font-weight: 600;">Atualizado em</div>
-            <div style="font-size: 0.85rem; color: {TAG_VERMELHO}; font-weight: 700;
-                        margin-top: 2px;">{data_atualizacao}</div>
+        <div style="display: flex; align-items: center; gap: 16px;">
+            <div class="status-live">LIVE</div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.65rem; color: {DARK_TEXT_MUTED}; text-transform: uppercase;
+                            letter-spacing: 1px; font-weight: 600;">Ultima atualizacao</div>
+                <div style="font-size: 0.85rem; color: {DARK_TEXT}; font-weight: 700;
+                            margin-top: 2px; font-family: 'Inter', monospace;">{data_atualizacao}</div>
+            </div>
         </div>
     </div>
     <div class="tag-divider"></div>
@@ -284,42 +398,46 @@ def _hex_to_rgba(hex_color, alpha=0.8):
 
 def _chart_layout(fig, title, height=480, y_title="% do PL", y_suffix="%",
                   legend_h=True, margin_b=40):
-    """Aplica layout padrão TAG a um gráfico Plotly."""
+    """Aplica layout dark futurista a um gráfico Plotly."""
     legend = dict(
         orientation="h", yanchor="bottom", y=1.02,
-        font=dict(size=11, color=TAG_CINZA_MEDIO, family="Tahoma, sans-serif"),
+        font=dict(size=10, color=DARK_TEXT_MUTED, family="Inter, sans-serif"),
         bgcolor="rgba(0,0,0,0)",
     ) if legend_h else dict(
-        font=dict(size=11, color=TAG_CINZA_MEDIO, family="Tahoma, sans-serif")
+        font=dict(size=10, color=DARK_TEXT_MUTED, family="Inter, sans-serif")
     )
 
+    grid_color = "#1E1E2E"  # grid sutil no dark
+
     layout_kwargs = dict(
-        height=height, template="plotly_white",
+        height=height, template="plotly_dark",
         xaxis=dict(
-            tickfont=dict(size=10, color=TAG_CINZA_MEDIO),
-            gridcolor="#e8e6e0", gridwidth=1,
+            tickfont=dict(size=9, color=DARK_TEXT_MUTED),
+            gridcolor=grid_color, gridwidth=1,
+            linecolor=DARK_BORDER, linewidth=1,
         ),
         legend=legend,
-        plot_bgcolor=TAG_BRANCO,
+        plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=50, r=16, t=50 if title else 30, b=margin_b),
-        font=dict(family="Tahoma, sans-serif", color=TAG_CINZA_ESCURO),
+        font=dict(family="Inter, sans-serif", color=DARK_TEXT),
         hoverlabel=dict(
-            bgcolor=TAG_BRANCO, font_size=12,
-            font_color=TAG_CINZA_ESCURO,
-            bordercolor=_hex_to_rgba(TAG_VERMELHO, 0.25),
+            bgcolor=DARK_SURFACE, font_size=12,
+            font_color=DARK_TEXT,
+            bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4),
         ),
         hovermode="x unified",
     )
     if title:
-        layout_kwargs["title"] = dict(text=title, font=dict(size=14, color=TAG_VERMELHO, family="Tahoma, sans-serif"))
+        layout_kwargs["title"] = dict(text=title, font=dict(size=13, color=TAG_LARANJA, family="Inter, sans-serif"))
     if y_title:
         layout_kwargs["yaxis"] = dict(
-            title=dict(text=y_title, font=dict(size=11, color=TAG_CINZA_MEDIO)),
+            title=dict(text=y_title, font=dict(size=10, color=DARK_TEXT_MUTED)),
             ticksuffix=y_suffix,
-            tickfont=dict(size=10, color=TAG_CINZA_MEDIO),
-            gridcolor="#e8e6e0", gridwidth=1,
-            zeroline=True, zerolinecolor="#d0cec6", zerolinewidth=1,
+            tickfont=dict(size=9, color=DARK_TEXT_MUTED),
+            gridcolor=grid_color, gridwidth=1,
+            zeroline=True, zerolinecolor="#2A2A3A", zerolinewidth=1,
+            linecolor=DARK_BORDER, linewidth=1,
         )
     fig.update_layout(**layout_kwargs)
     return fig
@@ -484,33 +602,33 @@ def render_tabela_carteira_html(tbl):
     rows_html = ""
     for i, row in tbl.iterrows():
         bar_width = min(100, (row["pct_pl"] / max_pct) * 100)
-        # Cor da barra gradiente: vermelho TAG para maiores, laranja para menores
+        # Cor da barra gradiente
         if row["pct_pl"] >= max_pct * 0.5:
-            bar_color = TAG_VERMELHO
-        elif row["pct_pl"] >= max_pct * 0.25:
-            bar_color = "#B44A5E"
-        else:
             bar_color = TAG_LARANJA
+        elif row["pct_pl"] >= max_pct * 0.25:
+            bar_color = "#5C85F7"
+        else:
+            bar_color = "#58C6F5"
 
         rank = i + 1
-        zebra = "#f9f8f5" if i % 2 == 1 else "#ffffff"
+        zebra = DARK_SURFACE_2 if i % 2 == 1 else DARK_SURFACE
 
         rows_html += f"""
-        <tr style="background: {zebra};">
-            <td style="padding: 10px 14px; text-align: center; font-weight: 600; color: #999; font-size: 12px; width: 40px;">{rank}</td>
-            <td style="padding: 10px 14px; font-weight: 700; color: {TAG_CINZA_ESCURO}; font-size: 14px; white-space: nowrap;">
+        <tr style="background: {zebra}; transition: background 0.2s;">
+            <td style="padding: 10px 14px; text-align: center; font-weight: 600; color: {DARK_TEXT_MUTED}; font-size: 12px; width: 40px;">{rank}</td>
+            <td style="padding: 10px 14px; font-weight: 700; color: {DARK_TEXT}; font-size: 14px; white-space: nowrap;">
                 {row['Ativo']}
             </td>
-            <td style="padding: 10px 14px; color: #666; font-size: 13px;">{row['Setor']}</td>
-            <td style="padding: 10px 14px; text-align: right; font-family: 'Consolas', 'Courier New', monospace; font-size: 13px; color: {TAG_CINZA_ESCURO};">
+            <td style="padding: 10px 14px; color: {DARK_TEXT_MUTED}; font-size: 13px;">{row['Setor']}</td>
+            <td style="padding: 10px 14px; text-align: right; font-family: 'Inter', monospace; font-size: 13px; color: {DARK_TEXT};">
                 {row['Valor']}
             </td>
             <td style="padding: 10px 14px; width: 200px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="flex: 1; background: #f0efea; border-radius: 4px; height: 18px; overflow: hidden;">
-                        <div style="width: {bar_width}%; height: 100%; background: {bar_color}; border-radius: 4px; transition: width 0.3s;"></div>
+                    <div style="flex: 1; background: {DARK_BORDER}; border-radius: 4px; height: 18px; overflow: hidden;">
+                        <div style="width: {bar_width}%; height: 100%; background: linear-gradient(90deg, {bar_color}, {TAG_LARANJA}80); border-radius: 4px; transition: width 0.3s;"></div>
                     </div>
-                    <span style="font-weight: 700; font-size: 13px; color: {TAG_CINZA_ESCURO}; min-width: 52px; text-align: right;">
+                    <span style="font-weight: 700; font-size: 13px; color: {DARK_TEXT}; min-width: 52px; text-align: right;">
                         {row['% PL']}
                     </span>
                 </div>
@@ -523,33 +641,33 @@ def render_tabela_carteira_html(tbl):
     nota_pct = ""
     if total_pct < 85:
         nota_pct = f"""
-        <tr style="background: #fff9f0;">
-            <td colspan="5" style="padding: 8px 14px; font-size: 11px; color: #999; text-align: center;">
+        <tr style="background: {DARK_SURFACE};">
+            <td colspan="5" style="padding: 8px 14px; font-size: 10px; color: {DARK_TEXT_MUTED}; text-align: center;">
                 * O % PL e calculado sobre o patrimonio total do fundo. Fundos com posicoes em renda fixa, caixa ou derivativos terao alocacao em acoes inferior a 100%.
             </td>
         </tr>"""
 
     html = f"""
-    <div style="border-radius: 8px; overflow: hidden; box-shadow: 0 1px 10px rgba(0,0,0,0.06); border: 1px solid {TAG_OFFWHITE}; margin: 8px 0 16px 0;">
-        <table style="width: 100%; border-collapse: collapse; font-family: 'Tahoma', 'Inter', sans-serif;">
+    <div style="border-radius: 12px; overflow: hidden; border: 1px solid {DARK_BORDER}; margin: 8px 0 16px 0; background: {DARK_SURFACE};">
+        <table style="width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif;">
             <thead>
-                <tr style="background: {TAG_VERMELHO};">
-                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: center; width: 36px; text-transform: uppercase; letter-spacing: 0.3px;">#</th>
-                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: left; text-transform: uppercase; letter-spacing: 0.3px;">Ativo</th>
-                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: left; text-transform: uppercase; letter-spacing: 0.3px;">Setor</th>
-                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: right; text-transform: uppercase; letter-spacing: 0.3px;">Valor</th>
-                    <th style="padding: 10px 14px; color: white; font-size: 11px; font-weight: 600; text-align: left; width: 200px; text-transform: uppercase; letter-spacing: 0.3px;">% PL</th>
+                <tr style="background: {DARK_SURFACE_2}; border-bottom: 1px solid {DARK_BORDER};">
+                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: center; width: 36px; text-transform: uppercase; letter-spacing: 0.8px;">#</th>
+                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: 0.8px;">Ativo</th>
+                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: 0.8px;">Setor</th>
+                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: right; text-transform: uppercase; letter-spacing: 0.8px;">Valor</th>
+                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: left; width: 200px; text-transform: uppercase; letter-spacing: 0.8px;">% PL</th>
                 </tr>
             </thead>
             <tbody>
                 {rows_html}
             </tbody>
             <tfoot>
-                <tr style="background: #f5f4ef; border-top: 2px solid {TAG_VERMELHO}33;">
-                    <td colspan="4" style="padding: 10px 14px; font-weight: 600; color: #777; font-size: 12px; text-align: right;">
+                <tr style="background: {DARK_SURFACE_2}; border-top: 1px solid {DARK_BORDER};">
+                    <td colspan="4" style="padding: 10px 14px; font-weight: 600; color: {DARK_TEXT_MUTED}; font-size: 12px; text-align: right;">
                         {n_ativos} ativos &nbsp;|&nbsp; Total alocado em acoes:
                     </td>
-                    <td style="padding: 10px 14px; font-weight: 700; font-size: 14px; color: {TAG_VERMELHO};">
+                    <td style="padding: 10px 14px; font-weight: 700; font-size: 14px; color: {TAG_LARANJA};">
                         {total_pct:.1f}%
                     </td>
                 </tr>
@@ -633,8 +751,8 @@ def main():
     df_pos = df_posicoes[df_posicoes["cnpj_fundo"].isin(cnpjs_sel)].copy()
 
     # ── Tabs ──
-    tab_ativo, tab_setor, tab_pl, tab_comparativo, tab_perf = st.tabs([
-        "Por Ativo", "Por Setor", "Evolucao PL", "Comparativo", "Performance"
+    tab_ativo, tab_setor, tab_pl, tab_comparativo, tab_perf, tab_destaques = st.tabs([
+        "Por Ativo", "Por Setor", "Evolucao PL", "Comparativo", "Performance", "Destaques"
     ])
 
     # ══════════════════════════════════════════════════════════════════════
@@ -828,23 +946,24 @@ def main():
                 y=labels,
                 text=text_ativos,
                 texttemplate="%{text}",
-                textfont=dict(size=11, color="white"),
+                textfont=dict(size=11, color=DARK_TEXT),
                 colorscale=[
-                    [0, "#e8eaf6"], [0.25, "#7986cb"],
-                    [0.5, "#3f51b5"], [0.75, "#283593"],
-                    [1, "#1a237e"]
+                    [0, DARK_SURFACE_2], [0.25, "#2A3060"],
+                    [0.5, "#3f51b5"], [0.75, "#5C85F7"],
+                    [1, "#58C6F5"]
                 ],
                 hovertemplate="<b>%{y}</b> x <b>%{x}</b><br>Sobreposicao: %{text}<extra></extra>",
                 showscale=True,
-                colorbar=dict(title="% PL", ticksuffix="%"),
+                colorbar=dict(title="% PL", ticksuffix="%", tickfont=dict(color=DARK_TEXT_MUTED)),
             ))
             fig_heat_a.update_layout(
                 height=max(420, 70 * n + 140),
-                template="plotly_white",
-                xaxis=dict(tickangle=45, side="bottom"),
-                yaxis=dict(autorange="reversed"),
-                font=dict(family="Tahoma, sans-serif", size=11),
+                template="plotly_dark",
+                xaxis=dict(tickangle=45, side="bottom", tickfont=dict(color=DARK_TEXT_MUTED)),
+                yaxis=dict(autorange="reversed", tickfont=dict(color=DARK_TEXT_MUTED)),
+                font=dict(family="Inter, sans-serif", size=11, color=DARK_TEXT),
                 margin=dict(l=10, r=10, t=20, b=120),
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
             )
             st.plotly_chart(fig_heat_a, width="stretch")
 
@@ -877,23 +996,24 @@ def main():
                 y=labels,
                 text=text_setores,
                 texttemplate="%{text}",
-                textfont=dict(size=11, color="white"),
+                textfont=dict(size=11, color=DARK_TEXT),
                 colorscale=[
-                    [0, "#fce4ec"], [0.25, "#ef9a9a"],
-                    [0.5, "#e53935"], [0.75, "#c62828"],
-                    [1, "#630D24"]
+                    [0, DARK_SURFACE_2], [0.25, "#3D1520"],
+                    [0.5, "#7A1E35"], [0.75, "#B44A5E"],
+                    [1, TAG_LARANJA]
                 ],
                 hovertemplate="<b>%{y}</b> x <b>%{x}</b><br>Sobreposicao: %{text}<extra></extra>",
                 showscale=True,
-                colorbar=dict(title="% PL", ticksuffix="%"),
+                colorbar=dict(title="% PL", ticksuffix="%", tickfont=dict(color=DARK_TEXT_MUTED)),
             ))
             fig_heat_s.update_layout(
                 height=max(420, 70 * n + 140),
-                template="plotly_white",
-                xaxis=dict(tickangle=45, side="bottom"),
-                yaxis=dict(autorange="reversed"),
-                font=dict(family="Tahoma, sans-serif", size=11),
+                template="plotly_dark",
+                xaxis=dict(tickangle=45, side="bottom", tickfont=dict(color=DARK_TEXT_MUTED)),
+                yaxis=dict(autorange="reversed", tickfont=dict(color=DARK_TEXT_MUTED)),
+                font=dict(family="Inter, sans-serif", size=11, color=DARK_TEXT),
                 margin=dict(l=10, r=10, t=20, b=120),
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
             )
             st.plotly_chart(fig_heat_s, width="stretch")
 
@@ -928,11 +1048,14 @@ def main():
 
                 fig_bar.update_layout(
                     barmode="group",
-                    height=480, template="plotly_white",
-                    yaxis=dict(title="% do PL", ticksuffix="%"),
-                    plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(family="Tahoma, sans-serif"),
-                    legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10)),
+                    height=480, template="plotly_dark",
+                    yaxis=dict(title="% do PL", ticksuffix="%", gridcolor="#1E1E2E",
+                               tickfont=dict(color=DARK_TEXT_MUTED)),
+                    xaxis=dict(tickfont=dict(color=DARK_TEXT_MUTED)),
+                    plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                    font=dict(family="Inter, sans-serif", color=DARK_TEXT),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                                font=dict(size=10, color=DARK_TEXT_MUTED)),
                     margin=dict(l=40, r=20, t=20, b=40),
                 )
                 st.plotly_chart(fig_bar, width="stretch")
@@ -1269,11 +1392,11 @@ def main():
                             return 50.0
 
                         fig_rank = go.Figure()
-                        # Quintil bands
+                        # Quintil bands (dark theme)
                         quintil_colors = [
-                            ("#e8f5e9", "Q1 (top)"), ("#fff9c4", "Q2"),
-                            ("#fff3e0", "Q3"), ("#fce4ec", "Q4"),
-                            ("#ffebee", "Q5 (bottom)")
+                            ("rgba(107,222,151,0.08)", "Q1 (top)"), ("rgba(255,187,0,0.06)", "Q2"),
+                            ("rgba(255,136,83,0.05)", "Q3"), ("rgba(237,90,110,0.06)", "Q4"),
+                            ("rgba(255,60,60,0.08)", "Q5 (bottom)")
                         ]
                         for qi, (qcolor, qlabel) in enumerate(quintil_colors):
                             y0 = 100 - qi * 20
@@ -1382,16 +1505,16 @@ def main():
                                 ))
 
                             fig_cap.update_layout(
-                                height=480, template="plotly_white",
-                                xaxis=dict(title=dict(text="Downside Capture (%)", font=dict(size=11, color=TAG_CINZA_MEDIO)),
-                                           ticksuffix="%", tickfont=dict(size=10, color=TAG_CINZA_MEDIO), gridcolor="#e8e6e0"),
-                                yaxis=dict(title=dict(text="Upside Capture (%)", font=dict(size=11, color=TAG_CINZA_MEDIO)),
-                                           ticksuffix="%", tickfont=dict(size=10, color=TAG_CINZA_MEDIO), gridcolor="#e8e6e0"),
-                                font=dict(family="Tahoma, sans-serif", color=TAG_CINZA_ESCURO),
-                                legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=11, color=TAG_CINZA_MEDIO)),
+                                height=480, template="plotly_dark",
+                                xaxis=dict(title=dict(text="Downside Capture (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                           ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor="#1E1E2E"),
+                                yaxis=dict(title=dict(text="Upside Capture (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                           ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor="#1E1E2E"),
+                                font=dict(family="Inter, sans-serif", color=DARK_TEXT),
+                                legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10, color=DARK_TEXT_MUTED)),
                                 margin=dict(l=50, r=16, t=40, b=50),
-                                plot_bgcolor=TAG_BRANCO, paper_bgcolor="rgba(0,0,0,0)",
-                                hoverlabel=dict(bgcolor=TAG_BRANCO, font_size=12, bordercolor=_hex_to_rgba(TAG_VERMELHO, 0.25)),
+                                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                                hoverlabel=dict(bgcolor=DARK_SURFACE, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
                                 hovermode="closest",
                             )
                             st.plotly_chart(fig_cap, use_container_width=True)
@@ -1451,11 +1574,11 @@ def main():
 
                     if ibov_cnpj in pivot_ret.columns:
                         fig_te = go.Figure()
-                        # Faixas de referência
-                        fig_te.add_hrect(y0=0, y1=2, fillcolor="rgba(200,200,200,0.15)", line_width=0, layer="below")
-                        fig_te.add_hrect(y0=2, y1=8, fillcolor="rgba(200,230,255,0.10)", line_width=0, layer="below")
-                        fig_te.add_hline(y=2, line_dash="dot", line_color="#bbb", line_width=1, annotation_text="Closet Indexer", annotation_position="top left")
-                        fig_te.add_hline(y=8, line_dash="dot", line_color="#bbb", line_width=1, annotation_text="Alta Convicção", annotation_position="top left")
+                        # Faixas de referência (dark)
+                        fig_te.add_hrect(y0=0, y1=2, fillcolor="rgba(42,42,58,0.5)", line_width=0, layer="below")
+                        fig_te.add_hrect(y0=2, y1=8, fillcolor="rgba(92,133,247,0.06)", line_width=0, layer="below")
+                        fig_te.add_hline(y=2, line_dash="dot", line_color="#3A3A4A", line_width=1, annotation_text="Closet Indexer", annotation_position="top left", annotation_font_color=DARK_TEXT_MUTED)
+                        fig_te.add_hline(y=8, line_dash="dot", line_color="#3A3A4A", line_width=1, annotation_text="Alta Convicção", annotation_position="top left", annotation_font_color=DARK_TEXT_MUTED)
 
                         bench_r = pivot_ret[ibov_cnpj]
                         for i, cnpj in enumerate(fund_cols):
@@ -1534,16 +1657,16 @@ def main():
                             ))
                         fig_scatter.add_hline(y=0, line_dash="dot", line_color="#ccc", line_width=1)
                         fig_scatter.update_layout(
-                            height=480, template="plotly_white",
-                            xaxis=dict(title=dict(text="Ulcer Index (risco)", font=dict(size=11, color=TAG_CINZA_MEDIO)),
-                                       zeroline=True, tickfont=dict(size=10, color=TAG_CINZA_MEDIO), gridcolor="#e8e6e0"),
-                            yaxis=dict(title=dict(text="Retorno Anualizado (%)", font=dict(size=11, color=TAG_CINZA_MEDIO)),
-                                       ticksuffix="%", tickfont=dict(size=10, color=TAG_CINZA_MEDIO), gridcolor="#e8e6e0"),
-                            font=dict(family="Tahoma, sans-serif", color=TAG_CINZA_ESCURO),
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=11, color=TAG_CINZA_MEDIO)),
+                            height=480, template="plotly_dark",
+                            xaxis=dict(title=dict(text="Ulcer Index (risco)", font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                       zeroline=True, tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor="#1E1E2E"),
+                            yaxis=dict(title=dict(text="Retorno Anualizado (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                       ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor="#1E1E2E"),
+                            font=dict(family="Inter, sans-serif", color=DARK_TEXT),
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10, color=DARK_TEXT_MUTED)),
                             margin=dict(l=50, r=16, t=40, b=50),
-                            plot_bgcolor=TAG_BRANCO, paper_bgcolor="rgba(0,0,0,0)",
-                            hoverlabel=dict(bgcolor=TAG_BRANCO, font_size=12, bordercolor=_hex_to_rgba(TAG_VERMELHO, 0.25)),
+                            plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+                            hoverlabel=dict(bgcolor=DARK_SURFACE, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
                             hovermode="closest",
                         )
                         st.plotly_chart(fig_scatter, use_container_width=True)
@@ -1662,6 +1785,366 @@ def main():
                     fig_sharpe.add_hline(y=0, line_dash="dot", line_color="#ccc", line_width=1)
                     _chart_layout(fig_sharpe, "", height=400, y_title="Sharpe Ratio", y_suffix="")
                     st.plotly_chart(fig_sharpe, use_container_width=True)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # TAB 6: DESTAQUES (Rankings multi-janela — inspirado relatório RV Long Only)
+    # ══════════════════════════════════════════════════════════════════════
+    with tab_destaques:
+        all_cnpjs_destaques = tuple(set(df_fundos["cnpj_norm"].dropna().tolist()))
+        df_cotas_all = carregar_cotas_fundos(
+            tuple(set(all_cnpjs_destaques) | set(BENCHMARK_CNPJS.values())), meses=120
+        )
+
+        if df_cotas_all.empty:
+            st.warning("Sem dados de cotas para gerar destaques.")
+        else:
+            cnpj_to_name = dict(zip(df_fundos["cnpj_norm"], df_fundos["nome"]))
+            bench_cnpj_to_name_d = {v: k for k, v in BENCHMARK_CNPJS.items()}
+
+            # Calcular retornos para cada janela
+            janelas_destaques = {
+                "MTD": None,  # calculado separado
+                "YTD": None,  # calculado separado
+                "3M": 63,
+                "6M": 126,
+                "12M": 252,
+                "24M": 504,
+                "36M": 756,
+                "60M": 1260,
+            }
+
+            pivot_q = df_cotas_all.pivot_table(index="data", columns="cnpj_fundo", values="vl_quota")
+            pivot_q = pivot_q.sort_index().ffill()
+
+            if pivot_q.empty:
+                st.warning("Sem dados de cotas suficientes.")
+            else:
+                max_date = pivot_q.index.max()
+                results = {}
+
+                # MTD: retorno desde o 1o dia útil do mês
+                month_start = pivot_q.loc[pivot_q.index.month == max_date.month].index.min()
+                if month_start is not None:
+                    q_start = pivot_q.loc[month_start]
+                    q_end = pivot_q.loc[max_date]
+                    results["MTD"] = ((q_end / q_start) - 1) * 100
+
+                # YTD: retorno desde o 1o dia útil do ano
+                year_start = pivot_q.loc[pivot_q.index.year == max_date.year].index.min()
+                if year_start is not None:
+                    q_start = pivot_q.loc[year_start]
+                    q_end = pivot_q.loc[max_date]
+                    results["YTD"] = ((q_end / q_start) - 1) * 100
+
+                # Janelas fixas
+                for label, dias in janelas_destaques.items():
+                    if dias is None:
+                        continue
+                    if len(pivot_q) < dias:
+                        continue
+                    # Pegar a data mais próxima de N dias atrás
+                    target_idx = max(0, len(pivot_q) - dias)
+                    q_start = pivot_q.iloc[target_idx]
+                    q_end = pivot_q.iloc[-1]
+                    results[label] = ((q_end / q_start) - 1) * 100
+
+                if not results:
+                    st.warning("Dados insuficientes para calcular retornos.")
+                else:
+                    # Montar DataFrame consolidado
+                    df_ret_all = pd.DataFrame(results)
+                    # Filtrar: só fundos com dados (excluir NaN em todas colunas)
+                    df_ret_all = df_ret_all.dropna(how="all")
+
+                    # Separar fundos da carteira vs benchmarks
+                    fund_cnpjs_d = set(df_ret_all.index) - set(BENCHMARK_CNPJS.values())
+
+                    # Adicionar nomes
+                    df_ret_all["nome"] = df_ret_all.index.map(
+                        lambda x: cnpj_to_name.get(x, bench_cnpj_to_name_d.get(x, x[:14]))
+                    )
+
+                    # Calcular estatísticas do universo
+                    df_funds_only = df_ret_all.loc[df_ret_all.index.isin(fund_cnpjs_d)]
+
+                    # ── 1. Resumo do Universo ──
+                    st.markdown('<div class="tag-section-title">Desempenho do Universo de Fundos RV</div>', unsafe_allow_html=True)
+                    st.caption(f"Amostra de {len(df_funds_only)} fundos de acoes. Data ref: {max_date.strftime('%d/%m/%Y')}.")
+
+                    # Tabela de resumo (tipo o PDF)
+                    summary_rows = []
+                    for col in df_ret_all.columns:
+                        if col == "nome":
+                            continue
+                        fund_vals = df_funds_only[col].dropna()
+                        if fund_vals.empty:
+                            continue
+                        summary_rows.append({
+                            "": f"Media Top 20",
+                            col: f"{fund_vals.nlargest(20).mean():.1f}%",
+                        })
+
+                    # Construir tabela HTML profissional com resumo
+                    janelas_disp = [c for c in results.keys() if c in df_ret_all.columns]
+                    bench_names = list(BENCHMARK_CNPJS.keys())
+
+                    # Calcular quartis para highlight
+                    quartis = {}
+                    for col in janelas_disp:
+                        vals = df_funds_only[col].dropna()
+                        if len(vals) >= 4:
+                            quartis[col] = {
+                                "q1": vals.quantile(0.75),
+                                "q2": vals.quantile(0.50),
+                                "q3": vals.quantile(0.25),
+                            }
+
+                    def _quartil_color(val, col):
+                        if col not in quartis:
+                            return ""
+                        q = quartis[col]
+                        if val >= q["q1"]:
+                            return "background: rgba(107,222,151,0.15); color: #6BDE97;"
+                        elif val >= q["q2"]:
+                            return "background: rgba(255,187,0,0.1); color: #FFBB00;"
+                        elif val >= q["q3"]:
+                            return "background: rgba(255,136,83,0.1); color: #FF8853;"
+                        else:
+                            return "background: rgba(255,60,60,0.1); color: #FF6B6B;"
+
+                    # Build summary table HTML
+                    th_cells = "".join(f'<th style="padding:10px 12px; text-align:right; color:{TAG_LARANJA}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px;">{j}</th>' for j in janelas_disp)
+                    summary_html = f"""
+                    <div style="border-radius:12px; overflow:hidden; border:1px solid {DARK_BORDER}; background:{DARK_SURFACE}; margin:8px 0 24px 0;">
+                    <table style="width:100%; border-collapse:collapse; font-family:'Inter',sans-serif;">
+                    <thead><tr style="background:{DARK_SURFACE_2}; border-bottom:1px solid {DARK_BORDER};">
+                        <th style="padding:10px 14px; text-align:left; color:{TAG_LARANJA}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; min-width:180px;">—</th>
+                        {th_cells}
+                    </tr></thead><tbody>"""
+
+                    # Rows: Média Top 20, Benchmarks, Mediana, Média, Média Bottom 20
+                    stat_rows = []
+                    for label_stat, calc_fn in [
+                        ("Media Top 20", lambda s: s.nlargest(min(20, len(s))).mean()),
+                    ]:
+                        stat_rows.append((label_stat, calc_fn, TAG_LARANJA))
+
+                    # Benchmarks
+                    for b_cnpj, b_name in BENCHMARK_CNPJS.items():
+                        if b_cnpj in df_ret_all.index:
+                            stat_rows.append((b_name, None, DARK_TEXT))
+
+                    stat_rows.extend([
+                        ("Mediana", lambda s: s.median(), DARK_TEXT),
+                        ("Media", lambda s: s.mean(), DARK_TEXT_MUTED),
+                        ("Media Bottom 20", lambda s: s.nsmallest(min(20, len(s))).mean(), "#FF6B6B"),
+                    ])
+
+                    for sr_label, sr_fn, sr_color in stat_rows:
+                        cells = ""
+                        for col in janelas_disp:
+                            if sr_fn is not None:
+                                vals = df_funds_only[col].dropna()
+                                if vals.empty:
+                                    cells += f'<td style="padding:8px 12px; text-align:right; color:{DARK_TEXT_MUTED};">—</td>'
+                                    continue
+                                v = sr_fn(vals)
+                            else:
+                                # Benchmark
+                                b_cnpj = [c for c, n in BENCHMARK_CNPJS.items() if n == sr_label]
+                                if b_cnpj and b_cnpj[0] in df_ret_all.index and col in df_ret_all.columns:
+                                    v = df_ret_all.loc[b_cnpj[0], col]
+                                    if pd.isna(v):
+                                        cells += f'<td style="padding:8px 12px; text-align:right; color:{DARK_TEXT_MUTED};">—</td>'
+                                        continue
+                                else:
+                                    cells += f'<td style="padding:8px 12px; text-align:right; color:{DARK_TEXT_MUTED};">—</td>'
+                                    continue
+                            neg = "color:#FF6B6B;" if v < 0 else ""
+                            cells += f'<td style="padding:8px 12px; text-align:right; font-weight:600; font-size:13px; {neg} color:{sr_color};">{v:.1f}%</td>'
+                        summary_html += f'<tr style="border-bottom:1px solid {DARK_BORDER}60;"><td style="padding:8px 14px; font-weight:600; font-size:13px; color:{sr_color};">{sr_label}</td>{cells}</tr>'
+
+                    summary_html += "</tbody></table></div>"
+                    st.markdown(summary_html, unsafe_allow_html=True)
+
+                    # ── 2. Seletor de janela para ranking ──
+                    janela_rank = st.selectbox(
+                        "Ordenar ranking por:", janelas_disp,
+                        index=min(0, len(janelas_disp) - 1),
+                        key="dest_janela"
+                    )
+
+                    # Destacar fundos selecionados na carteira
+                    sel_cnpjs_set = set(cnpjs_sel)
+
+                    # ── 3. Top 20 e Bottom 20 ──
+                    col_top, col_bot = st.columns(2)
+
+                    with col_top:
+                        st.markdown(f'<div class="tag-section-title" style="color:#6BDE97;">Melhores — {janela_rank}</div>', unsafe_allow_html=True)
+                        top20 = df_funds_only.nlargest(20, janela_rank)[[janela_rank, "nome"]].copy()
+                        top20 = top20.dropna(subset=[janela_rank])
+
+                        top_html = f'<div style="border-radius:12px; overflow:hidden; border:1px solid {DARK_BORDER}; background:{DARK_SURFACE};">'
+                        top_html += f'<table style="width:100%; border-collapse:collapse; font-family:Inter,sans-serif;">'
+                        top_html += f'<thead><tr style="background:{DARK_SURFACE_2};border-bottom:1px solid {DARK_BORDER};">'
+                        top_html += f'<th style="padding:8px 10px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;width:30px;">#</th>'
+                        top_html += f'<th style="padding:8px 10px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">Fundo</th>'
+
+                        for jcol in janelas_disp:
+                            bold = "font-weight:800;" if jcol == janela_rank else ""
+                            top_html += f'<th style="padding:8px 8px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}">{jcol}</th>'
+                        top_html += '</tr></thead><tbody>'
+
+                        for rank_i, (cnpj_row, row) in enumerate(top20.iterrows()):
+                            is_selected = cnpj_row in sel_cnpjs_set
+                            bg = f"background:rgba(107,222,151,0.08);" if is_selected else ""
+                            name_style = f"color:{TAG_LARANJA};font-weight:700;" if is_selected else f"color:{DARK_TEXT};"
+                            zb = f"background:{DARK_SURFACE_2};" if rank_i % 2 == 1 and not is_selected else ""
+                            top_html += f'<tr style="{bg}{zb}border-bottom:1px solid {DARK_BORDER}40;">'
+                            top_html += f'<td style="padding:6px 10px;text-align:center;color:{DARK_TEXT_MUTED};font-size:11px;font-weight:600;">{rank_i+1}</td>'
+                            nome_short = row["nome"][:35] + "..." if len(row["nome"]) > 35 else row["nome"]
+                            top_html += f'<td style="padding:6px 10px;font-size:12px;{name_style}white-space:nowrap;">{nome_short}</td>'
+
+                            for jcol in janelas_disp:
+                                v = df_ret_all.loc[cnpj_row, jcol] if cnpj_row in df_ret_all.index and jcol in df_ret_all.columns else np.nan
+                                if pd.isna(v):
+                                    top_html += f'<td style="padding:6px 8px;text-align:right;color:{DARK_TEXT_MUTED};font-size:11px;">—</td>'
+                                else:
+                                    qstyle = _quartil_color(v, jcol)
+                                    neg = "color:#FF6B6B;" if v < 0 else ""
+                                    bold = "font-weight:700;" if jcol == janela_rank else ""
+                                    top_html += f'<td style="padding:6px 8px;text-align:right;font-size:11px;{qstyle}{neg}{bold}border-radius:4px;">{v:.1f}%</td>'
+                            top_html += '</tr>'
+                        top_html += '</tbody></table></div>'
+                        st.markdown(top_html, unsafe_allow_html=True)
+
+                    with col_bot:
+                        st.markdown(f'<div class="tag-section-title" style="color:#FF6B6B;">Piores — {janela_rank}</div>', unsafe_allow_html=True)
+                        bot20 = df_funds_only.nsmallest(20, janela_rank)[[janela_rank, "nome"]].copy()
+                        bot20 = bot20.dropna(subset=[janela_rank])
+
+                        bot_html = f'<div style="border-radius:12px; overflow:hidden; border:1px solid {DARK_BORDER}; background:{DARK_SURFACE};">'
+                        bot_html += f'<table style="width:100%; border-collapse:collapse; font-family:Inter,sans-serif;">'
+                        bot_html += f'<thead><tr style="background:{DARK_SURFACE_2};border-bottom:1px solid {DARK_BORDER};">'
+                        bot_html += f'<th style="padding:8px 10px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;width:30px;">#</th>'
+                        bot_html += f'<th style="padding:8px 10px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">Fundo</th>'
+                        for jcol in janelas_disp:
+                            bold = "font-weight:800;" if jcol == janela_rank else ""
+                            bot_html += f'<th style="padding:8px 8px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}">{jcol}</th>'
+                        bot_html += '</tr></thead><tbody>'
+
+                        for rank_i, (cnpj_row, row) in enumerate(bot20.iterrows()):
+                            is_selected = cnpj_row in sel_cnpjs_set
+                            bg = f"background:rgba(255,60,60,0.08);" if is_selected else ""
+                            name_style = f"color:{TAG_LARANJA};font-weight:700;" if is_selected else f"color:{DARK_TEXT};"
+                            zb = f"background:{DARK_SURFACE_2};" if rank_i % 2 == 1 and not is_selected else ""
+                            bot_html += f'<tr style="{bg}{zb}border-bottom:1px solid {DARK_BORDER}40;">'
+                            bot_html += f'<td style="padding:6px 10px;text-align:center;color:{DARK_TEXT_MUTED};font-size:11px;font-weight:600;">{rank_i+1}</td>'
+                            nome_short = row["nome"][:35] + "..." if len(row["nome"]) > 35 else row["nome"]
+                            bot_html += f'<td style="padding:6px 10px;font-size:12px;{name_style}white-space:nowrap;">{nome_short}</td>'
+
+                            for jcol in janelas_disp:
+                                v = df_ret_all.loc[cnpj_row, jcol] if cnpj_row in df_ret_all.index and jcol in df_ret_all.columns else np.nan
+                                if pd.isna(v):
+                                    bot_html += f'<td style="padding:6px 8px;text-align:right;color:{DARK_TEXT_MUTED};font-size:11px;">—</td>'
+                                else:
+                                    qstyle = _quartil_color(v, jcol)
+                                    neg = "color:#FF6B6B;" if v < 0 else ""
+                                    bold = "font-weight:700;" if jcol == janela_rank else ""
+                                    bot_html += f'<td style="padding:6px 8px;text-align:right;font-size:11px;{qstyle}{neg}{bold}border-radius:4px;">{v:.1f}%</td>'
+                            bot_html += '</tr>'
+                        bot_html += '</tbody></table></div>'
+                        st.markdown(bot_html, unsafe_allow_html=True)
+
+                    # ── 4. Posição dos fundos selecionados no ranking ──
+                    st.markdown('<div class="tag-section-title">Posicao dos Fundos Selecionados no Ranking</div>', unsafe_allow_html=True)
+
+                    ranking_full = df_funds_only[janela_rank].dropna().rank(ascending=False, method="min")
+                    total_ranked = len(ranking_full)
+
+                    sel_rank_rows = []
+                    for nome in fundos_sel:
+                        cnpj = nome_cnpj_map[nome]
+                        if cnpj in ranking_full.index:
+                            pos = int(ranking_full.loc[cnpj])
+                            pctl = (1 - pos / total_ranked) * 100
+                            ret_val = df_funds_only.loc[cnpj, janela_rank] if cnpj in df_funds_only.index else np.nan
+
+                            # Quartil label
+                            if pctl >= 75:
+                                q_label = "Q1"
+                                q_color = "#6BDE97"
+                            elif pctl >= 50:
+                                q_label = "Q2"
+                                q_color = "#FFBB00"
+                            elif pctl >= 25:
+                                q_label = "Q3"
+                                q_color = "#FF8853"
+                            else:
+                                q_label = "Q4"
+                                q_color = "#FF6B6B"
+
+                            sel_rank_rows.append({
+                                "nome": nome, "pos": pos, "total": total_ranked,
+                                "pctl": pctl, "ret": ret_val, "q_label": q_label, "q_color": q_color,
+                            })
+
+                    if sel_rank_rows:
+                        sel_cols = st.columns(min(len(sel_rank_rows), 4))
+                        for i, sr in enumerate(sel_rank_rows):
+                            with sel_cols[i % len(sel_cols)]:
+                                ret_str = f"{sr['ret']:.1f}%" if pd.notna(sr['ret']) else "—"
+                                st.markdown(f"""
+                                <div class="tag-metric-card" style="text-align:center;">
+                                    <div class="label">{sr['nome'][:25]}</div>
+                                    <div class="value" style="font-size:2rem;">{sr['pos']}<span style="font-size:0.9rem;color:{DARK_TEXT_MUTED};">/{sr['total']}</span></div>
+                                    <div style="margin-top:8px;display:flex;justify-content:center;gap:12px;align-items:center;">
+                                        <span style="background:{sr['q_color']}20;color:{sr['q_color']};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">{sr['q_label']}</span>
+                                        <span style="color:{DARK_TEXT_MUTED};font-size:12px;">{ret_str} ({janela_rank})</span>
+                                    </div>
+                                    <div style="margin-top:8px;">
+                                        <div style="background:{DARK_BORDER};border-radius:4px;height:6px;overflow:hidden;">
+                                            <div style="width:{sr['pctl']:.0f}%;height:100%;background:linear-gradient(90deg,{sr['q_color']},{TAG_LARANJA});border-radius:4px;"></div>
+                                        </div>
+                                        <div style="font-size:10px;color:{DARK_TEXT_MUTED};margin-top:3px;">Percentil {sr['pctl']:.0f}%</div>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+
+                    # ── 5. Distribuição de Retornos (histograma) ──
+                    if janela_rank in df_funds_only.columns:
+                        st.markdown(f'<div class="tag-section-title">Distribuicao de Retornos — {janela_rank}</div>', unsafe_allow_html=True)
+
+                        ret_vals = df_funds_only[janela_rank].dropna()
+                        fig_hist = go.Figure()
+                        fig_hist.add_trace(go.Histogram(
+                            x=ret_vals, nbinsx=30,
+                            marker=dict(color=_hex_to_rgba(TAG_LARANJA, 0.6), line=dict(width=1, color=TAG_LARANJA)),
+                            hovertemplate="Retorno: %{x:.1f}%<br>Fundos: %{y}<extra></extra>",
+                        ))
+
+                        # Marcar fundos selecionados
+                        for nome in fundos_sel:
+                            cnpj = nome_cnpj_map[nome]
+                            if cnpj in ret_vals.index:
+                                v = ret_vals.loc[cnpj]
+                                fig_hist.add_vline(x=v, line_dash="dash", line_color=TAG_CHART_COLORS[0], line_width=2,
+                                                   annotation_text=nome.split()[0], annotation_position="top",
+                                                   annotation_font_color=DARK_TEXT, annotation_font_size=10)
+
+                        # Marcar benchmarks
+                        for b_cnpj, b_name in BENCHMARK_CNPJS.items():
+                            if b_cnpj in df_ret_all.index and janela_rank in df_ret_all.columns:
+                                bv = df_ret_all.loc[b_cnpj, janela_rank]
+                                if pd.notna(bv):
+                                    fig_hist.add_vline(x=bv, line_dash="dot", line_color="#58C6F5", line_width=1.5,
+                                                       annotation_text=b_name.split("(")[0].strip()[:10],
+                                                       annotation_position="top",
+                                                       annotation_font_color=DARK_TEXT_MUTED, annotation_font_size=9)
+
+                        _chart_layout(fig_hist, "", height=350, y_title="Qtd. Fundos", y_suffix="")
+                        st.plotly_chart(fig_hist, use_container_width=True)
 
 
 if __name__ == "__main__":
