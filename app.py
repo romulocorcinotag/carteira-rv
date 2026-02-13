@@ -976,7 +976,7 @@ def main():
     with tab_perf:
         bench_cnpj_to_name = {v: k for k, v in BENCHMARK_CNPJS.items()}
         ibov_cnpj = list(BENCHMARK_CNPJS.values())[0]  # IBOVESPA proxy
-        all_cnpjs_for_cotas = tuple(set(cnpjs_sel))
+        all_cnpjs_for_cotas = tuple(set(cnpjs_sel) | set(BENCHMARK_CNPJS.values()))
 
         df_cotas = carregar_cotas_fundos(all_cnpjs_for_cotas, meses=36)
 
@@ -1167,7 +1167,10 @@ def main():
                             fund_roll = rolling_ret[cnpj].dropna()
                             if fund_roll.empty:
                                 continue
-                            pctls = fund_roll.apply(lambda v: _percentil_interpolado(v, v.name) if pd.notna(v) else np.nan)
+                            pctls = pd.Series(
+                                [_percentil_interpolado(val, dt) if pd.notna(val) else np.nan for dt, val in fund_roll.items()],
+                                index=fund_roll.index,
+                            )
                             pctls = pctls.dropna()
                             if pctls.empty:
                                 continue
