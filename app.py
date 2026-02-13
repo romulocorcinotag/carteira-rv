@@ -944,7 +944,8 @@ def main():
             if not tbl.empty:
                 with st.expander("Carteira Atual (detalhada)", expanded=False):
                     html_table = render_tabela_carteira_html(tbl)
-                    st.markdown(html_table, unsafe_allow_html=True)
+                    if html_table:
+                        st.html(html_table)
 
             pivot = preparar_pivot_ativo(df_pos, cnpj)
             if not pivot.empty:
@@ -2182,7 +2183,7 @@ def main():
                         summary_html += f'<tr style="border-bottom:1px solid {DARK_BORDER}60;"><td style="padding:8px 14px; font-weight:600; font-size:13px; color:{sr_color};">{sr_label}</td>{cells}</tr>'
 
                     summary_html += "</tbody></table></div>"
-                    st.markdown(summary_html, unsafe_allow_html=True)
+                    st.html(summary_html)
 
                     # ── 2. Seletor de janela para ranking ──
                     janela_rank = st.selectbox(
@@ -2257,7 +2258,7 @@ def main():
                                     top_html += f'<td style="padding:6px 8px;text-align:right;font-size:11px;{qstyle}{neg}{bold}border-radius:4px;">{v:.1f}%</td>'
                             top_html += '</tr>'
                         top_html += '</tbody></table></div>'
-                        st.markdown(top_html, unsafe_allow_html=True)
+                        st.html(top_html)
 
                     with col_bot:
                         st.markdown(f'<div class="tag-section-title" style="color:#FF6B6B;">Piores — {janela_rank}</div>', unsafe_allow_html=True)
@@ -2298,7 +2299,7 @@ def main():
                                     bot_html += f'<td style="padding:6px 8px;text-align:right;font-size:11px;{qstyle}{neg}{bold}border-radius:4px;">{v:.1f}%</td>'
                             bot_html += '</tr>'
                         bot_html += '</tbody></table></div>'
-                        st.markdown(bot_html, unsafe_allow_html=True)
+                        st.html(bot_html)
 
                     # ── 4. Posição dos fundos selecionados no ranking ──
                     st.markdown('<div class="tag-section-title">Posicao dos Fundos Selecionados no Ranking</div>', unsafe_allow_html=True)
