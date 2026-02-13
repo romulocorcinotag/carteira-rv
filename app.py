@@ -220,10 +220,26 @@ def inject_css():
             border-radius: 8px !important;
             color: {DARK_TEXT} !important;
         }}
-        .stSelectbox label, .stMultiSelect label, .stDateInput label {{
-            color: #B0B0C8 !important;
+        .stSelectbox label, .stMultiSelect label, .stDateInput label,
+        .stSlider label, .stNumberInput label, .stTextInput label,
+        .stRadio label, .stCheckbox label,
+        [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] p,
+        [data-testid="stWidgetLabel"] label, [data-testid="stWidgetLabel"] span,
+        .stSelectbox [data-testid="stWidgetLabel"],
+        .stMultiSelect [data-testid="stWidgetLabel"] {{
+            color: #D0D0E0 !important;
             font-size: 11px !important; text-transform: uppercase !important;
             letter-spacing: 0.5px !important; font-weight: 600 !important;
+        }}
+        /* All widget labels globally — bright white */
+        label, .stApp label {{
+            color: #D0D0E0 !important;
+        }}
+        /* Slider specific */
+        .stSlider [data-testid="stTickBarMin"],
+        .stSlider [data-testid="stTickBarMax"],
+        .stSlider div[data-baseweb="slider"] div {{
+            color: {DARK_TEXT} !important;
         }}
         .stSelectbox > div > div:focus-within,
         .stMultiSelect > div > div:focus-within {{
@@ -418,9 +434,22 @@ def inject_css():
             fill: #7070888 !important;
         }}
 
-        /* ── Labels / Radio / Checkbox ── */
-        .stRadio label, .stCheckbox label {{
+        /* ── Labels / Radio / Checkbox / Metric ── */
+        .stRadio label, .stCheckbox label, .stRadio span, .stCheckbox span {{
             color: {DARK_TEXT} !important;
+        }}
+        /* Streamlit caption / small text */
+        .stCaption, .stCaption p, small {{
+            color: #B0B0C8 !important;
+        }}
+        /* Select box placeholder text */
+        [data-baseweb="select"] [data-testid="stMarkdownContainer"] p {{
+            color: {DARK_TEXT} !important;
+        }}
+        /* All paragraph text inside widgets */
+        .stSelectbox p, .stMultiSelect p, .stDateInput p,
+        .stSlider p, .stNumberInput p, .stTextInput p {{
+            color: #D0D0E0 !important;
         }}
         [data-testid="stMetricValue"] {{
             color: {DARK_TEXT} !important;
@@ -1965,64 +1994,51 @@ def main():
                 "60M": 1260,
             }
 
-            pivot_q = df_cotas_all.pivot_table(index="data", columns="cnpj_fundo", values="vl_quota")
-            pivot_q = pivot_q.sort_index().ffill()
+            # ── ABORDAGEM CORRETA: usar retorno_diario (pct_change) e compor ──
+            # Pivotar retornos diários (NÃO cotas) — sem ffill para não contaminar
+            pivot_ret = df_cotas_all.pivot_table(
+                index="data", columns="cnpj_fundo", values="retorno_diario"
+            ).sort_index()
+            # Filtrar retornos diários absurdos (>30% num único dia → provavelmente erro/reset)
+            pivot_ret = pivot_ret.where(pivot_ret.abs() <= 0.30)
 
-            if pivot_q.empty:
+            if pivot_ret.empty:
                 st.warning("Sem dados de cotas suficientes.")
             else:
-                max_date = pivot_q.index.max()
+                max_date = pivot_ret.index.max()
                 results = {}
 
-                # MTD: retorno desde o 1o dia útil do mês ATUAL
-                month_mask = (pivot_q.index.month == max_date.month) & (pivot_q.index.year == max_date.year)
-                month_dates = pivot_q.loc[month_mask].index
-                if len(month_dates) >= 2:
-                    # Usar a SEGUNDA data do mês (primeira cota é base, retorno começa no dia seguinte)
-                    # Ou seja, retorno = cota_fim / cota_inicio - 1, onde inicio = ultimo dia do mês anterior
-                    month_start = month_dates.min()
-                    # Pegar o dia útil anterior ao inicio do mês para base correta
-                    dates_before = pivot_q.loc[pivot_q.index < month_start].index
-                    if len(dates_before) > 0:
-                        base_date = dates_before.max()  # último dia útil do mês anterior
-                        q_start = pivot_q.loc[base_date]
-                    else:
-                        q_start = pivot_q.loc[month_start]
-                    q_end = pivot_q.loc[max_date]
-                    results["MTD"] = ((q_end / q_start) - 1) * 100
-                elif len(month_dates) == 1:
-                    # Só 1 dia no mês — usar dia anterior como base
-                    dates_before = pivot_q.loc[pivot_q.index < month_dates[0]].index
-                    if len(dates_before) > 0:
-                        q_start = pivot_q.loc[dates_before.max()]
-                        q_end = pivot_q.loc[max_date]
-                        results["MTD"] = ((q_end / q_start) - 1) * 100
+                # Helper: compor retornos diários em janela → retorno acumulado %
+                def _compound_returns(ret_slice):
+                    """Recebe slice do pivot_ret, retorna Series com retorno acumulado (%) por fundo."""
+                    # Exigir pelo menos 60% dos dias com dados para considerar válido
+                    min_valid = max(2, int(len(ret_slice) * 0.6))
+                    valid_mask = ret_slice.notna().sum() >= min_valid
+                    comp = (1 + ret_slice.fillna(0)).prod() - 1
+                    # Zerar fundos com dados insuficientes
+                    comp[~valid_mask] = np.nan
+                    return comp * 100
 
-                # YTD: retorno desde o último dia útil do ano anterior
-                year_mask = pivot_q.index.year == max_date.year
-                year_dates = pivot_q.loc[year_mask].index
-                if len(year_dates) >= 1:
-                    year_first = year_dates.min()
-                    dates_before_year = pivot_q.loc[pivot_q.index < year_first].index
-                    if len(dates_before_year) > 0:
-                        base_date = dates_before_year.max()
-                        q_start = pivot_q.loc[base_date]
-                    else:
-                        q_start = pivot_q.loc[year_first]
-                    q_end = pivot_q.loc[max_date]
-                    results["YTD"] = ((q_end / q_start) - 1) * 100
+                # MTD: retornos do mês atual (compostos)
+                month_mask = (pivot_ret.index.month == max_date.month) & (pivot_ret.index.year == max_date.year)
+                month_slice = pivot_ret.loc[month_mask]
+                if len(month_slice) >= 1:
+                    results["MTD"] = _compound_returns(month_slice)
 
-                # Janelas fixas
+                # YTD: retornos do ano atual (compostos)
+                year_mask = pivot_ret.index.year == max_date.year
+                year_slice = pivot_ret.loc[year_mask]
+                if len(year_slice) >= 1:
+                    results["YTD"] = _compound_returns(year_slice)
+
+                # Janelas fixas: últimos N dias úteis
                 for label, dias in janelas_destaques.items():
                     if dias is None:
                         continue
-                    if len(pivot_q) < dias:
+                    if len(pivot_ret) < dias:
                         continue
-                    # Pegar a data mais próxima de N dias atrás
-                    target_idx = max(0, len(pivot_q) - dias)
-                    q_start = pivot_q.iloc[target_idx]
-                    q_end = pivot_q.iloc[-1]
-                    results[label] = ((q_end / q_start) - 1) * 100
+                    window_slice = pivot_ret.iloc[-dias:]
+                    results[label] = _compound_returns(window_slice)
 
                 if not results:
                     st.warning("Dados insuficientes para calcular retornos.")
@@ -2031,6 +2047,11 @@ def main():
                     df_ret_all = pd.DataFrame(results)
                     # Filtrar: só fundos com dados (excluir NaN em todas colunas)
                     df_ret_all = df_ret_all.dropna(how="all")
+                    # Sanity check: excluir retornos absurdos (>500% ou <-99%)
+                    for col in df_ret_all.columns:
+                        if col == "nome":
+                            continue
+                        df_ret_all.loc[df_ret_all[col].abs() > 500, col] = np.nan
 
                     # Separar fundos da carteira vs benchmarks
                     fund_cnpjs_d = set(df_ret_all.index) - set(BENCHMARK_CNPJS.values())
