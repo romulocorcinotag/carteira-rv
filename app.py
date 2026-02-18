@@ -54,18 +54,26 @@ st.set_page_config(
     page_title="Carteira RV - TAG Investimentos",
     page_icon="\U0001F4C8",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 _APP_DIR = os.path.dirname(os.path.abspath(__file__))
-LOGO_PATH = os.path.join(_APP_DIR, "..", "luz_amarela", "tag_logo_rodape.png")
+
+# Logo grande para sidebar
+LOGO_SIDEBAR_PATH = os.path.join(_APP_DIR, "assets", "logo_sidebar.png")
+if not os.path.exists(LOGO_SIDEBAR_PATH):
+    LOGO_SIDEBAR_PATH = os.path.join(_APP_DIR, "..", "luz_amarela", "logo_sidebar.png")
+
+# Logo rodapé (fallback)
+LOGO_PATH = os.path.join(_APP_DIR, "assets", "tag_logo_rodape.png")
 if not os.path.exists(LOGO_PATH):
-    LOGO_PATH = os.path.join(_APP_DIR, "assets", "tag_logo_rodape.png")
+    LOGO_PATH = os.path.join(_APP_DIR, "..", "luz_amarela", "tag_logo_rodape.png")
 
 
-def get_logo_base64():
-    if os.path.exists(LOGO_PATH):
-        with open(LOGO_PATH, "rb") as f:
+def get_logo_base64(path=None):
+    p = path or LOGO_SIDEBAR_PATH
+    if os.path.exists(p):
+        with open(p, "rb") as f:
             return base64.b64encode(f.read()).decode()
     return None
 
@@ -137,6 +145,71 @@ def inject_css():
         #MainMenu {{visibility: hidden;}}
         footer {{visibility: hidden;}}
         header {{visibility: hidden;}}
+
+        /* ══════════════════════════════════════════════════
+           SIDEBAR
+        ══════════════════════════════════════════════════ */
+        [data-testid="stSidebar"] {{
+            background: {TAG_BG_DARK} !important;
+            border-right: 1px solid {TAG_VERMELHO}25;
+            min-width: 260px !important;
+            max-width: 280px !important;
+        }}
+        [data-testid="stSidebar"] [data-testid="stSidebarContent"] {{
+            padding-top: 0 !important;
+        }}
+        /* Sidebar logo */
+        .sidebar-logo {{
+            text-align: center;
+            padding: 32px 20px 8px 20px;
+        }}
+        .sidebar-logo img {{
+            width: 160px;
+            height: auto;
+            margin-bottom: 6px;
+        }}
+        .sidebar-logo .app-name {{
+            font-size: 0.85rem;
+            color: {TAG_LARANJA};
+            margin-top: 8px;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+        }}
+        .sidebar-logo .bar {{
+            width: 40px;
+            height: 2px;
+            background: {TAG_LARANJA};
+            margin: 8px auto 0;
+        }}
+        /* Sidebar radio navigation */
+        [data-testid="stSidebar"] .stRadio > div {{
+            gap: 4px !important;
+        }}
+        [data-testid="stSidebar"] .stRadio label {{
+            padding: 12px 20px !important;
+            border-radius: 8px !important;
+            cursor: pointer !important;
+            font-size: 0.95rem !important;
+            font-weight: 500 !important;
+            color: {TEXT_MUTED} !important;
+            transition: all 0.2s ease !important;
+            margin: 0 !important;
+        }}
+        [data-testid="stSidebar"] .stRadio label:hover {{
+            background: {TAG_BG_CARD} !important;
+            color: {TAG_OFFWHITE} !important;
+        }}
+        [data-testid="stSidebar"] .stRadio label[data-checked="true"],
+        [data-testid="stSidebar"] .stRadio [aria-checked="true"] {{
+            background: linear-gradient(135deg, {TAG_VERMELHO} 0%, {TAG_VERMELHO_DARK} 100%) !important;
+            color: {TAG_OFFWHITE} !important;
+            font-weight: 700 !important;
+            box-shadow: 0 4px 12px rgba(99,13,36,0.3) !important;
+        }}
+        /* Hide radio circles */
+        [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label > div:first-child {{
+            display: none !important;
+        }}
 
         /* ══════════════════════════════════════════════════
            TABS
@@ -303,7 +376,7 @@ def inject_css():
         .stCaption {{
             font-size: 0.9rem !important;
         }}
-        div[data-testid="stSidebar"] {{ display: none !important; }}
+        /* sidebar now visible — navigation */
 
         /* ── Expander ── */
         details {{
@@ -332,12 +405,7 @@ def inject_css():
 # ──────────────────────────────────────────────────────────────────────────────
 # Header
 # ──────────────────────────────────────────────────────────────────────────────
-def render_header():
-    logo_b64 = get_logo_base64()
-    logo_html = f'<div class="tag-logo-box"><img src="data:image/png;base64,{logo_b64}"></div>' if logo_b64 else ""
-
-    # Data da última atualização: ler a data mais recente dos próprios dados de cotas
-    data_atualizacao = "—"
+def _get_data_atualizacao():
     data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
     cotas_path = os.path.join(data_dir, "cotas_consolidado.parquet")
     if os.path.exists(cotas_path):
@@ -347,31 +415,63 @@ def render_header():
             col_data = pf.column("data").to_pylist()
             if col_data:
                 max_dt = max(col_data)
-                if hasattr(max_dt, "strftime"):
-                    data_atualizacao = max_dt.strftime("%d/%m/%Y")
-                else:
-                    data_atualizacao = str(max_dt)[:10]
+                return max_dt.strftime("%d/%m/%Y") if hasattr(max_dt, "strftime") else str(max_dt)[:10]
         except Exception:
-            data_atualizacao = "—"
+            pass
+    return "—"
 
-    st.markdown(f"""
-    <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 0;">
-        <div class="tag-header">
-            {logo_html}
-            <div class="tag-header-text">
-                <h1>Carteira RV</h1>
-                <p>Monitoramento de Fundos de Renda Variavel</p>
+
+PAGINAS = ["Carteira", "Comparativo", "Performance", "Destaques"]
+PAGINAS_ICONS = ["📊", "🔀", "📈", "🏆"]
+
+
+def render_sidebar():
+    """Sidebar com logo grande + radio navigation."""
+    with st.sidebar:
+        # Logo centralizada grande
+        logo_b64 = get_logo_base64()
+        if logo_b64:
+            st.markdown(f"""
+            <div class="sidebar-logo">
+                <img src="data:image/png;base64,{logo_b64}" alt="TAG Investimentos"/>
+                <div class="bar"></div>
+                <div class="app-name">Carteira RV</div>
             </div>
-        </div>
-        <div style="text-align: right;">
-            <div style="font-size: 0.75rem; color: {TEXT_MUTED}; text-transform: uppercase;
+            """, unsafe_allow_html=True)
+
+        st.markdown("")
+
+        # Navegação via radio
+        opcoes = [f"{PAGINAS_ICONS[i]}  {p}" for i, p in enumerate(PAGINAS)]
+        default_idx = 0
+        if "pagina" in st.session_state:
+            try:
+                default_idx = PAGINAS.index(st.session_state.pagina)
+            except ValueError:
+                default_idx = 0
+
+        sel = st.radio(
+            "Navegacao",
+            options=opcoes,
+            index=default_idx,
+            label_visibility="collapsed",
+        )
+        # Extrair nome da página sem o emoji
+        pagina_sel = sel.split("  ", 1)[1] if "  " in sel else sel
+        st.session_state.pagina = pagina_sel
+
+        st.markdown("---")
+
+        # Data atualização no rodapé da sidebar
+        data_atualizacao = _get_data_atualizacao()
+        st.markdown(f"""
+        <div style="text-align: center; padding: 8px 0;">
+            <div style="font-size: 0.7rem; color: {TEXT_MUTED}; text-transform: uppercase;
                         letter-spacing: 1px; font-weight: 600;">Dados ate</div>
-            <div style="font-size: 1rem; color: {TAG_OFFWHITE}; font-weight: 700;
+            <div style="font-size: 0.9rem; color: {TAG_OFFWHITE}; font-weight: 700;
                         margin-top: 2px;">{data_atualizacao}</div>
         </div>
-    </div>
-    <div class="tag-divider"></div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -700,10 +800,10 @@ def _calcular_sobreposicao_setores(set_a: dict, set_b: dict) -> float:
 # ──────────────────────────────────────────────────────────────────────────────
 def main():
     inject_css()
+    render_sidebar()
 
     # Carregar dados
     df_fundos, df_posicoes = carregar_todos_dados()
-    render_header()
 
     if df_posicoes.empty:
         st.warning("Nenhum dado de carteira encontrado.")
@@ -747,15 +847,13 @@ def main():
     cnpjs_sel = [nome_cnpj_map[n] for n in fundos_sel]
     df_pos = df_posicoes[df_posicoes["cnpj_fundo"].isin(cnpjs_sel)].copy()
 
-    # ── Tabs ──
-    tab_carteira, tab_comparativo, tab_perf, tab_destaques = st.tabs([
-        "Carteira", "Comparativo", "Performance", "Destaques"
-    ])
+    # ── Página atual (via sidebar) ──
+    pagina = st.session_state.get("pagina", "Carteira")
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 1: CARTEIRA (Ativo + Setor + Evolução PL unificados)
+    # PÁGINA: CARTEIRA
     # ══════════════════════════════════════════════════════════════════════
-    with tab_carteira:
+    if pagina == "Carteira":
         for idx, nome_fundo in enumerate(fundos_sel):
             cnpj = nome_cnpj_map[nome_fundo]
             df_f = df_pos[df_pos["cnpj_fundo"] == cnpj]
@@ -1156,9 +1254,9 @@ Equal-weight seria: {_eq_weight:.0f}
                 st.markdown('<div class="tag-section-divider"></div>', unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 2: COMPARATIVO
+    # PÁGINA: COMPARATIVO
     # ══════════════════════════════════════════════════════════════════════
-    with tab_comparativo:
+    elif pagina == "Comparativo":
         if len(fundos_sel) < 2:
             st.info("Selecione 2 ou mais fundos para ver o comparativo.")
         else:
@@ -1597,9 +1695,9 @@ Equal-weight seria: {_eq_weight:.0f}
 
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 3: PERFORMANCE
+    # PÁGINA: PERFORMANCE
     # ══════════════════════════════════════════════════════════════════════
-    with tab_perf:
+    elif pagina == "Performance":
         bench_cnpj_to_name = {v: k for k, v in BENCHMARK_CNPJS.items()}
         ibov_cnpj = list(BENCHMARK_CNPJS.values())[0]  # IBOVESPA proxy
         all_cnpjs_for_cotas = tuple(set(cnpjs_sel) | set(BENCHMARK_CNPJS.values()))
@@ -2387,9 +2485,9 @@ Equal-weight seria: {_eq_weight:.0f}
                                 st.plotly_chart(fig_regime, use_container_width=True)
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 4: DESTAQUES (Rankings multi-janela — inspirado relatório RV Long Only)
+    # PÁGINA: DESTAQUES (Rankings multi-janela — inspirado relatório RV Long Only)
     # ══════════════════════════════════════════════════════════════════════
-    with tab_destaques:
+    elif pagina == "Destaques":
         # ── Filtros de Categoria e Tier para Destaques ──
         col_dest_cat, col_dest_tier = st.columns(2)
         with col_dest_cat:
