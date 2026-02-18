@@ -10,6 +10,8 @@ from data_loader import (
     carregar_todos_dados, carregar_fundos_rv,
     carregar_cotas_fundos, carregar_universo_stats, BENCHMARK_CNPJS,
 )
+from sector_map import classificar_setor
+import pdf_parser
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Paleta TAG Investimentos — Dark Theme (igual Simulador de Realocação)
@@ -439,8 +441,8 @@ def _get_data_atualizacao():
     return "—"
 
 
-PAGINAS = ["Carteira", "Comparativo", "Performance", "Destaques"]
-PAGINAS_ICONS = ["📊", "🔀", "📈", "🏆"]
+PAGINAS = ["Carteira", "Comparativo", "Performance", "Destaques", "Explosão"]
+PAGINAS_ICONS = ["📊", "🔀", "📈", "🏆", "💥"]
 
 
 def render_sidebar():
@@ -2941,6 +2943,309 @@ Equal-weight seria: {_eq_weight:.0f}
 
                         _chart_layout(fig_hist, "", height=350, y_title="Qtd. Fundos", y_suffix="")
                         st.plotly_chart(fig_hist, use_container_width=True)
+
+    # ══════════════════════════════════════════════════════════════════════
+    # PÁGINA: EXPLOSÃO (Decomposição de fundos TAG em ações subjacentes)
+    # ══════════════════════════════════════════════════════════════════════
+    elif pagina == "Explosão":
+        _render_explosao(df_fundos, df_posicoes)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# EXPLOSÃO — Função dedicada (fora do main para manter legibilidade)
+# ──────────────────────────────────────────────────────────────────────────────
+def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
+    """Página Explosão: decomposição de fundos TAG em ações subjacentes via PDFs BTG."""
+
+    # ── Verificar se diretório de PDFs existe ──
+    if not pdf_parser._pdf_dir_exists():
+        st.warning(
+            "📂 Diretório de PDFs do BTG não encontrado. "
+            "Esta funcionalidade só está disponível no ambiente local com acesso à rede."
+        )
+        return
+
+    # ── Seletor de data ──
+    datas_pdf = pdf_parser.listar_datas_disponiveis()
+    if not datas_pdf:
+        st.warning("Nenhuma data disponível nos PDFs do BTG.")
+        return
+
+    col_data, col_fundos_pdf = st.columns([1, 3])
+
+    with col_data:
+        # Formatar datas para exibição
+        datas_display = [f"{d[:4]}-{d[4:6]}-{d[6:]}" for d in datas_pdf[:60]]
+        data_sel_display = st.selectbox("Data (PDF BTG)", options=datas_display, index=0)
+        data_sel = data_sel_display.replace("-", "")
+
+    # ── Listar fundos disponíveis (filtrar por RV/FIA) ──
+    fundos_pdf = pdf_parser.listar_fundos_pdf(data_sel)
+
+    # Filtrar apenas fundos RV/FIA (conter FIA, FIC FIM, FIM, AÇÕES)
+    kw_rv = ["FIA", "FIC FIM", "FIM", "ACOES", "AÇÕES", "RV", "LONG"]
+    fundos_rv_pdf = [f for f in fundos_pdf if any(k in f.upper() for k in kw_rv)]
+    if not fundos_rv_pdf:
+        fundos_rv_pdf = fundos_pdf  # fallback: mostrar todos
+
+    with col_fundos_pdf:
+        fundos_sel_pdf = st.multiselect(
+            "Fundo(s) TAG",
+            options=fundos_rv_pdf,
+            default=fundos_rv_pdf[:1] if fundos_rv_pdf else [],
+            max_selections=5,
+        )
+
+    if not fundos_sel_pdf:
+        st.info("Selecione pelo menos um fundo TAG para explodir.")
+        return
+
+    # ── Normalizar CNPJs dos fundos no nosso universo (para cruzamento) ──
+    cnpj_to_nome_universo = {}
+    for _, row in df_fundos.iterrows():
+        cnpj_to_nome_universo[row["cnpj_norm"]] = row["nome"]
+        if row.get("cnpj_foco_norm") and row["cnpj_foco_norm"] != "":
+            cnpj_to_nome_universo[row["cnpj_foco_norm"]] = row["nome"]
+
+    # ── Processar cada fundo selecionado ──
+    for nome_fundo_tag in fundos_sel_pdf:
+        st.markdown(f"### 💥 {nome_fundo_tag}")
+
+        # Resumo do fundo
+        resumo = pdf_parser.extrair_resumo(data_sel, nome_fundo_tag)
+        df_portfolio = pdf_parser.extrair_portfolio_investido(data_sel, nome_fundo_tag)
+
+        if df_portfolio.empty:
+            st.warning(f"Não foi possível extrair o portfólio investido de {nome_fundo_tag}.")
+            continue
+
+        patrimonio = resumo.get("patrimonio", 0)
+        n_fundos = len(df_portfolio)
+        total_pct = df_portfolio["pct_pl"].sum()
+
+        # ── Cards de resumo ──
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown(metric_card(
+                "Patrimônio",
+                f"R$ {patrimonio:,.0f}" if patrimonio else "N/D"
+            ), unsafe_allow_html=True)
+        with c2:
+            st.markdown(metric_card("Fundos Investidos", str(n_fundos)), unsafe_allow_html=True)
+        with c3:
+            st.markdown(metric_card("% PL Investido", f"{total_pct:.1f}%"), unsafe_allow_html=True)
+
+        # ── Tabela Nível 1: Fundos investidos ──
+        st.markdown(f'<div class="tag-section-title">Fundos Investidos (PDF BTG)</div>', unsafe_allow_html=True)
+
+        # Normalizar CNPJs do PDF para cruzamento
+        df_portfolio["cnpj_norm"] = df_portfolio["cnpj"].apply(
+            lambda x: pdf_parser._normalizar_cnpj(str(x)) if x else ""
+        )
+
+        # Verificar quais fundos investidos temos dados XML/CVM
+        cnpjs_investidos = set(df_portfolio["cnpj_norm"].unique()) - {""}
+        cnpjs_com_dados = set(df_posicoes["cnpj_fundo"].unique()) if not df_posicoes.empty else set()
+
+        # Também verificar por cnpj_foco_norm (mapeamento master → feeder)
+        foco_to_direto = {}
+        for _, row in df_fundos.iterrows():
+            foco = row.get("cnpj_foco_norm", "")
+            direto = row["cnpj_norm"]
+            if foco and foco != direto and foco != "":
+                foco_to_direto[foco] = direto
+
+        df_portfolio["tem_dados"] = df_portfolio["cnpj_norm"].apply(
+            lambda cnpj: "✅" if (cnpj in cnpjs_com_dados or foco_to_direto.get(cnpj, cnpj) in cnpjs_com_dados) else ("⚠️" if cnpj == "" else "❌")
+        )
+
+        # Tabela formatada
+        df_display = df_portfolio[["nome_portfolio", "cnpj", "pct_pl", "financeiro", "ganho_diario", "tem_dados"]].copy()
+        df_display.columns = ["Fundo", "CNPJ", "% PL", "Financeiro (R$)", "Ganho Diário (R$)", "Dados RV"]
+        df_display["Financeiro (R$)"] = df_display["Financeiro (R$)"].apply(lambda x: f"{x:,.2f}")
+        df_display["Ganho Diário (R$)"] = df_display["Ganho Diário (R$)"].apply(lambda x: f"{x:,.2f}")
+        df_display["% PL"] = df_display["% PL"].apply(lambda x: f"{x:.2f}%")
+
+        st.dataframe(
+            df_display,
+            use_container_width=True,
+            hide_index=True,
+            height=min(len(df_display) * 40 + 45, 400),
+        )
+
+        # ── Explosão: Cruzar com dados XML/CVM ──
+        st.markdown(f'<div class="tag-section-title">Exposição a Ações (Explosão)</div>', unsafe_allow_html=True)
+
+        exposicoes = []
+        fundos_identificados = 0
+
+        for _, row_pdf in df_portfolio.iterrows():
+            cnpj_fundo_investido = row_pdf["cnpj_norm"]
+            peso_fundo = row_pdf["pct_pl"] / 100.0  # peso no TAG
+            nome_fundo_investido = row_pdf["nome_portfolio"]
+
+            if not cnpj_fundo_investido:
+                continue
+
+            # Resolver mapeamento master/foco → direto
+            cnpj_busca = foco_to_direto.get(cnpj_fundo_investido, cnpj_fundo_investido)
+
+            # Buscar posições mais recentes desse fundo
+            df_fundo_pos = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_busca].copy()
+            if df_fundo_pos.empty:
+                # Tentar com CNPJ original
+                df_fundo_pos = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_fundo_investido].copy()
+
+            if df_fundo_pos.empty:
+                continue
+
+            fundos_identificados += 1
+
+            # Pegar snapshot mais recente
+            data_mais_recente = df_fundo_pos["data"].max()
+            df_snapshot = df_fundo_pos[df_fundo_pos["data"] == data_mais_recente].copy()
+
+            for _, acao in df_snapshot.iterrows():
+                ticker = acao["ativo"]
+                pct_pl_no_fundo = acao.get("pct_pl", 0) or 0
+                setor = acao.get("setor", classificar_setor(ticker))
+
+                # Exposição ponderada: peso do fundo no TAG × peso da ação no fundo
+                exposicao_ponderada = peso_fundo * pct_pl_no_fundo
+
+                exposicoes.append({
+                    "ativo": ticker,
+                    "setor": setor,
+                    "fundo_origem": nome_fundo_investido,
+                    "peso_fundo_pct": row_pdf["pct_pl"],
+                    "peso_no_fundo_pct": pct_pl_no_fundo,
+                    "exposicao_pct": exposicao_ponderada,
+                })
+
+        if not exposicoes:
+            st.info("Nenhuma ação identificada nos fundos investidos. Os dados XML/CVM podem não estar disponíveis para estes fundos.")
+            continue
+
+        df_exp = pd.DataFrame(exposicoes)
+
+        # Card: % identificado
+        pct_identificado = df_portfolio[df_portfolio["cnpj_norm"].apply(
+            lambda c: c in cnpjs_com_dados or foco_to_direto.get(c, c) in cnpjs_com_dados
+        )]["pct_pl"].sum()
+
+        c4, c5, c6 = st.columns(3)
+        with c4:
+            st.markdown(metric_card("Fundos c/ Dados RV", f"{fundos_identificados}/{n_fundos}"), unsafe_allow_html=True)
+        with c5:
+            st.markdown(metric_card("% PL Identificado", f"{pct_identificado:.1f}%"), unsafe_allow_html=True)
+        with c6:
+            n_acoes = df_exp["ativo"].nunique()
+            st.markdown(metric_card("Ações Únicas", str(n_acoes)), unsafe_allow_html=True)
+
+        # ── Tabela consolidada por ativo ──
+        df_consolidado = df_exp.groupby("ativo").agg(
+            exposicao_pct=("exposicao_pct", "sum"),
+            setor=("setor", "first"),
+            n_fundos=("fundo_origem", "nunique"),
+            origens=("fundo_origem", lambda x: ", ".join(sorted(x.unique()))),
+        ).reset_index().sort_values("exposicao_pct", ascending=False)
+
+        # ── Top 20 ações — Gráfico de barras horizontal ──
+        top_acoes = df_consolidado.head(20).copy()
+
+        fig_barras = go.Figure()
+        fig_barras.add_trace(go.Bar(
+            y=top_acoes["ativo"][::-1],
+            x=top_acoes["exposicao_pct"][::-1],
+            orientation="h",
+            marker=dict(
+                color=[_hex_to_rgba(TAG_LARANJA, 0.7 + 0.3 * (i / max(len(top_acoes) - 1, 1)))
+                       for i in range(len(top_acoes))][::-1],
+                line=dict(width=0),
+            ),
+            text=[f"{v:.2f}%" for v in top_acoes["exposicao_pct"][::-1]],
+            textposition="outside",
+            textfont=dict(size=10, color=TAG_OFFWHITE),
+            hovertemplate="%{y}: %{x:.2f}% do PL<extra></extra>",
+        ))
+        _chart_layout(fig_barras, "Top 20 Ações — Exposição Ponderada",
+                      height=max(400, len(top_acoes) * 28),
+                      y_title="", y_suffix="%", legend_h=False)
+        fig_barras.update_layout(
+            xaxis=dict(title="% do PL", ticksuffix="%"),
+            yaxis=dict(tickfont=dict(size=10)),
+            margin=dict(l=120, r=60, t=50, b=40),
+        )
+        st.plotly_chart(fig_barras, use_container_width=True)
+
+        # ── Exposição por setor — Gráfico treemap / barras ──
+        df_setor = df_exp.groupby("setor").agg(
+            exposicao_pct=("exposicao_pct", "sum"),
+            n_acoes=("ativo", "nunique"),
+        ).reset_index().sort_values("exposicao_pct", ascending=False)
+
+        col_setor_chart, col_setor_table = st.columns([3, 2])
+
+        with col_setor_chart:
+            # Treemap de setores
+            fig_treemap = go.Figure(go.Treemap(
+                labels=df_setor["setor"],
+                values=df_setor["exposicao_pct"],
+                parents=[""] * len(df_setor),
+                texttemplate="<b>%{label}</b><br>%{value:.1f}%",
+                hovertemplate="<b>%{label}</b><br>Exposição: %{value:.2f}%<br>Ações: %{customdata}<extra></extra>",
+                customdata=df_setor["n_acoes"],
+                marker=dict(
+                    colors=[TAG_CHART_COLORS[i % len(TAG_CHART_COLORS)] for i in range(len(df_setor))],
+                    line=dict(width=1, color=TAG_BG_DARK),
+                ),
+                textfont=dict(size=12, color=TAG_OFFWHITE),
+            ))
+            fig_treemap.update_layout(
+                title=dict(text="Exposição por Setor", font=dict(size=14, color=TAG_LARANJA)),
+                height=400,
+                margin=dict(l=10, r=10, t=50, b=10),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(fig_treemap, use_container_width=True)
+
+        with col_setor_table:
+            # Tabela de setores
+            df_setor_display = df_setor.copy()
+            df_setor_display["exposicao_pct"] = df_setor_display["exposicao_pct"].apply(lambda x: f"{x:.2f}%")
+            df_setor_display.columns = ["Setor", "Exposição (% PL)", "N° Ações"]
+            st.dataframe(df_setor_display, use_container_width=True, hide_index=True,
+                         height=min(len(df_setor_display) * 40 + 45, 400))
+
+        # ── Tabela detalhada (todas as ações) ──
+        with st.expander(f"📋 Tabela Detalhada — {len(df_consolidado)} ações", expanded=False):
+            df_detail = df_consolidado.copy()
+            df_detail["exposicao_pct"] = df_detail["exposicao_pct"].apply(lambda x: f"{x:.3f}%")
+            df_detail.columns = ["Ativo", "Exposição (% PL)", "Setor", "N° Fundos", "Origens"]
+            st.dataframe(df_detail, use_container_width=True, hide_index=True,
+                         height=min(len(df_detail) * 40 + 45, 600))
+
+        # ── Tabela cruzada: ação × fundo origem ──
+        with st.expander(f"🔀 Matriz Ação × Fundo Origem", expanded=False):
+            # Pivot: ativo nas linhas, fundo_origem nas colunas, valor = exposição
+            top_30_ativos = df_consolidado.head(30)["ativo"].tolist()
+            df_matriz = df_exp[df_exp["ativo"].isin(top_30_ativos)].pivot_table(
+                index="ativo",
+                columns="fundo_origem",
+                values="exposicao_pct",
+                aggfunc="sum",
+                fill_value=0,
+            )
+            df_matriz["Total"] = df_matriz.sum(axis=1)
+            df_matriz = df_matriz.sort_values("Total", ascending=False)
+
+            # Formatar
+            df_mat_display = df_matriz.map(lambda x: f"{x:.2f}%" if x > 0 else "-")
+            st.dataframe(df_mat_display, use_container_width=True,
+                         height=min(len(df_mat_display) * 40 + 45, 600))
+
+        st.markdown("---")
 
 
 if __name__ == "__main__":
