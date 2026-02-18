@@ -25,9 +25,9 @@ TAG_CINZA_ESCURO = "#2C1A1A"
 TAG_CINZA_MEDIO = "#6A6864"
 TAG_AZUL_ESCURO = "#002A6E"
 # Dark theme tokens
-TAG_BG_DARK = "#1A0A10"
-TAG_BG_CARD = "#2A1520"
-TAG_BG_CARD_ALT = "#321A28"
+TAG_BG_DARK = "#1E0C14"
+TAG_BG_CARD = "#2D1722"
+TAG_BG_CARD_ALT = "#361D2A"
 CARD_BG = TAG_BG_CARD
 TEXT_COLOR = TAG_OFFWHITE
 TEXT_MUTED = "#9A9590"
@@ -147,13 +147,31 @@ def inject_css():
         header {{visibility: hidden;}}
 
         /* ══════════════════════════════════════════════════
-           SIDEBAR
+           SIDEBAR — sempre visível, sem botão de fechar
         ══════════════════════════════════════════════════ */
         [data-testid="stSidebar"] {{
             background: {TAG_BG_DARK} !important;
             border-right: 1px solid {TAG_VERMELHO}25;
             min-width: 260px !important;
             max-width: 280px !important;
+        }}
+        /* Impedir collapse: esconder botão de fechar e forçar visibilidade */
+        [data-testid="stSidebar"][aria-expanded="false"] {{
+            display: block !important;
+            min-width: 260px !important;
+            max-width: 280px !important;
+            width: 260px !important;
+            transform: none !important;
+            margin-left: 0 !important;
+        }}
+        button[kind="headerNoPadding"] {{
+            display: none !important;
+        }}
+        [data-testid="stSidebarCollapsedControl"] {{
+            display: none !important;
+        }}
+        [data-testid="collapsedControl"] {{
+            display: none !important;
         }}
         [data-testid="stSidebar"] [data-testid="stSidebarContent"] {{
             padding-top: 0 !important;
