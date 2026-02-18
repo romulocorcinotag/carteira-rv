@@ -748,14 +748,14 @@ def main():
     df_pos = df_posicoes[df_posicoes["cnpj_fundo"].isin(cnpjs_sel)].copy()
 
     # ── Tabs ──
-    tab_ativo, tab_setor, tab_pl, tab_comparativo, tab_perf, tab_destaques = st.tabs([
-        "Por Ativo", "Por Setor", "Evolucao PL", "Comparativo", "Performance", "Destaques"
+    tab_carteira, tab_comparativo, tab_perf, tab_destaques = st.tabs([
+        "Carteira", "Comparativo", "Performance", "Destaques"
     ])
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 1: POR ATIVO
+    # TAB 1: CARTEIRA (Ativo + Setor + Evolução PL unificados)
     # ══════════════════════════════════════════════════════════════════════
-    with tab_ativo:
+    with tab_carteira:
         for idx, nome_fundo in enumerate(fundos_sel):
             cnpj = nome_cnpj_map[nome_fundo]
             df_f = df_pos[df_pos["cnpj_fundo"] == cnpj]
@@ -1137,30 +1137,18 @@ Equal-weight seria: {_eq_weight:.0f}
                         else:
                             st.caption("Sem reducoes significativas")
 
-            if idx < len(fundos_sel) - 1:
-                st.markdown('<div class="tag-section-divider"></div>', unsafe_allow_html=True)
+            # ─── Composição por Setor ───
+            st.markdown(f"""<div style="margin-top: 24px; padding: 6px 0 4px 0; border-bottom: 2px solid {TAG_VERMELHO}40;">
+                <span style="color: {TAG_LARANJA}; font-weight: 700; font-size: 1.05rem;">
+                Composicao por Setor</span></div>""", unsafe_allow_html=True)
 
-    # ══════════════════════════════════════════════════════════════════════
-    # TAB 2: POR SETOR
-    # ══════════════════════════════════════════════════════════════════════
-    with tab_setor:
-        for idx, nome_fundo in enumerate(fundos_sel):
-            cnpj = nome_cnpj_map[nome_fundo]
-            df_f = df_pos[df_pos["cnpj_fundo"] == cnpj]
-
-            if df_f.empty:
-                st.warning(f"Sem dados para {nome_fundo}")
-                continue
-
-            st.markdown(f"### {nome_fundo}")
-
-            ultima_data = df_f["data"].max()
-            setor_atual = df_f[df_f["data"] == ultima_data].groupby("setor")["pct_pl"].sum().sort_values(ascending=False)
-            setor_df = setor_atual.reset_index()
-            setor_df.columns = ["Setor", "% PL"]
-            setor_df["% PL"] = setor_df["% PL"].map(lambda x: f"{x:.1f}%")
+            _ultima_data_s = df_f["data"].max()
+            _setor_atual = df_f[df_f["data"] == _ultima_data_s].groupby("setor")["pct_pl"].sum().sort_values(ascending=False)
+            _setor_df = _setor_atual.reset_index()
+            _setor_df.columns = ["Setor", "% PL"]
+            _setor_df["% PL"] = _setor_df["% PL"].map(lambda x: f"{x:.1f}%")
             with st.expander("Alocacao Setorial Atual", expanded=False):
-                st.dataframe(setor_df, width="stretch", hide_index=True)
+                st.dataframe(_setor_df, width="stretch", hide_index=True)
 
             pivot_s = preparar_pivot_setor(df_pos, cnpj)
             if not pivot_s.empty:
@@ -1173,32 +1161,21 @@ Equal-weight seria: {_eq_weight:.0f}
                     width="stretch",
                 )
 
-            if idx < len(fundos_sel) - 1:
-                st.markdown('<div class="tag-section-divider"></div>', unsafe_allow_html=True)
+            # ─── Evolução do PL ───
+            st.markdown(f"""<div style="margin-top: 24px; padding: 6px 0 4px 0; border-bottom: 2px solid {TAG_VERMELHO}40;">
+                <span style="color: {TAG_LARANJA}; font-weight: 700; font-size: 1.05rem;">
+                Evolucao do Patrimonio Liquido</span></div>""", unsafe_allow_html=True)
 
-    # ══════════════════════════════════════════════════════════════════════
-    # TAB 3: EVOLUÇÃO PL
-    # ══════════════════════════════════════════════════════════════════════
-    with tab_pl:
-        for idx, nome_fundo in enumerate(fundos_sel):
-            cnpj = nome_cnpj_map[nome_fundo]
-            df_f = df_pos[df_pos["cnpj_fundo"] == cnpj]
-
-            if df_f.empty:
-                continue
-
-            st.markdown(f"### {nome_fundo}")
-
-            pl_mensal = df_f.groupby("data")["pl"].first().reset_index()
+            _pl_mensal = df_f.groupby("data")["pl"].first().reset_index()
             st.plotly_chart(
-                grafico_pl(pl_mensal, f"{nome_fundo} — Patrimonio Liquido"),
+                grafico_pl(_pl_mensal, f"{nome_fundo} — Patrimonio Liquido"),
                 width="stretch",
             )
 
-            n_ativos = df_f.groupby("data")["ativo"].nunique().reset_index()
-            n_ativos.columns = ["data", "n_ativos"]
+            _n_ativos_pl = df_f.groupby("data")["ativo"].nunique().reset_index()
+            _n_ativos_pl.columns = ["data", "n_ativos"]
             st.plotly_chart(
-                grafico_n_ativos(n_ativos, f"{nome_fundo} — Numero de Ativos"),
+                grafico_n_ativos(_n_ativos_pl, f"{nome_fundo} — Numero de Ativos"),
                 width="stretch",
             )
 
@@ -1206,7 +1183,7 @@ Equal-weight seria: {_eq_weight:.0f}
                 st.markdown('<div class="tag-section-divider"></div>', unsafe_allow_html=True)
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 4: COMPARATIVO
+    # TAB 2: COMPARATIVO
     # ══════════════════════════════════════════════════════════════════════
     with tab_comparativo:
         if len(fundos_sel) < 2:
@@ -1647,7 +1624,7 @@ Equal-weight seria: {_eq_weight:.0f}
 
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 5: PERFORMANCE
+    # TAB 3: PERFORMANCE
     # ══════════════════════════════════════════════════════════════════════
     with tab_perf:
         bench_cnpj_to_name = {v: k for k, v in BENCHMARK_CNPJS.items()}
@@ -2437,7 +2414,7 @@ Equal-weight seria: {_eq_weight:.0f}
                                 st.plotly_chart(fig_regime, use_container_width=True)
 
     # ══════════════════════════════════════════════════════════════════════
-    # TAB 6: DESTAQUES (Rankings multi-janela — inspirado relatório RV Long Only)
+    # TAB 4: DESTAQUES (Rankings multi-janela — inspirado relatório RV Long Only)
     # ══════════════════════════════════════════════════════════════════════
     with tab_destaques:
         # ── Filtros de Categoria e Tier para Destaques ──
