@@ -809,12 +809,15 @@ def main():
             if fig_conc is not None:
                 st.plotly_chart(fig_conc, width="stretch")
 
-            # ─── HHI de Concentração ───
-            # Herfindahl-Hirschman Index por data: HHI = sum(w_i^2)
-            # HHI=1 = fundo inteiro num ativo; HHI→0 = muito diversificado
+            # ─── HHI Normalizado de Concentração ───
+            # HHI = sum(w_i^2) * 10000 (escala 0–10.000)
+            # HHI* (normalizado) = (HHI - HHI_min) / (10000 - HHI_min) * 100
+            # onde HHI_min = 10000/N (carteira igualmente distribuída em N ativos)
+            # HHI*=0 → perfeitamente distribuído; HHI*=100 → tudo em 1 ativo
             _datas_hhi = sorted(df_f["data"].unique())
             if len(_datas_hhi) >= 2:
-                _hhi_vals = []
+                _hhi_vals = []        # HHI bruto (0-10000)
+                _hhi_norm_vals = []   # HHI* normalizado (0-100)
                 _hhi_dates = []
                 _n_ativos_hist = []
                 for _dt in _datas_hhi:
@@ -822,34 +825,67 @@ def main():
                     _weights = _snap["pct_pl"].dropna() / 100.0
                     _weights = _weights[_weights > 0]
                     if len(_weights) > 0:
-                        _hhi = (_weights ** 2).sum()
-                        _hhi_vals.append(_hhi * 10000)  # escala 0-10000
+                        _n = len(_weights)
+                        _hhi = (_weights ** 2).sum() * 10000
+                        _hhi_min = 10000 / _n if _n > 0 else 10000
+                        # Normalizado: 0 = igual-peso, 100 = concentrado em 1
+                        if _n > 1:
+                            _hhi_star = (_hhi - _hhi_min) / (10000 - _hhi_min) * 100
+                        else:
+                            _hhi_star = 100.0
+                        _hhi_vals.append(_hhi)
+                        _hhi_norm_vals.append(_hhi_star)
                         _hhi_dates.append(_dt)
-                        _n_ativos_hist.append(len(_weights))
+                        _n_ativos_hist.append(_n)
 
                 if len(_hhi_vals) >= 2:
+                    # --- Legenda explicativa ---
+                    st.markdown(f"""
+<div style="background: linear-gradient(135deg, {TAG_BG_CARD}, {TAG_BG_CARD_ALT}); border: 1px solid {TAG_VERMELHO}30; border-radius: 8px; padding: 12px 16px; margin-bottom: 12px; font-size: 0.82rem; color: {TEXT_MUTED};">
+<strong style="color: {TAG_OFFWHITE};">Indice HHI* Normalizado</strong><br>
+Mede o quao concentrada é a carteira em relacao ao maximo de diversificacao possivel dado o numero de ativos.<br>
+<b>Calculo:</b> HHI = &Sigma;(w<sub>i</sub>)<sup>2</sup> &times; 10.000 &nbsp;|&nbsp;
+HHI* = (HHI &minus; 10.000/N) / (10.000 &minus; 10.000/N) &times; 100<br>
+<span style="color:#6BDE97;">&#9679;</span> <b>0–20</b> = Bem diversificado &nbsp;
+<span style="color:#FFBB00;">&#9679;</span> <b>20–40</b> = Moderado &nbsp;
+<span style="color:#FF8853;">&#9679;</span> <b>40–60</b> = Concentrado &nbsp;
+<span style="color:#ED5A6E;">&#9679;</span> <b>&gt;60</b> = Muito concentrado
+</div>""", unsafe_allow_html=True)
+
                     fig_hhi = go.Figure()
                     fig_hhi.add_trace(go.Scatter(
-                        x=_hhi_dates, y=_hhi_vals,
+                        x=_hhi_dates, y=_hhi_norm_vals,
                         mode="lines+markers",
-                        name="HHI",
+                        name="HHI*",
                         line=dict(width=2.5, color=TAG_CHART_COLORS[4]),
                         marker=dict(size=5, color=TAG_CHART_COLORS[4]),
-                        hovertemplate="<b>HHI</b><br>%{x|%d/%m/%Y}: %{y:.0f}<extra></extra>",
+                        hovertemplate="<b>HHI*</b><br>%{x|%d/%m/%Y}: %{y:.1f}<br>HHI bruto: %{customdata:.0f}<extra></extra>",
+                        customdata=_hhi_vals,
                     ))
-                    # Faixas de referência
-                    fig_hhi.add_hline(y=2500, line_dash="dot", line_color="#6BDE97", line_width=1,
-                                      annotation_text="Diversificado (<2500)", annotation_position="bottom right",
-                                      annotation_font_color="#6BDE97", annotation_font_size=9)
-                    fig_hhi.add_hline(y=5000, line_dash="dot", line_color="#FFBB00", line_width=1,
-                                      annotation_text="Moderado (2500-5000)", annotation_position="bottom right",
-                                      annotation_font_color="#FFBB00", annotation_font_size=9)
-                    fig_hhi.add_hline(y=7500, line_dash="dot", line_color="#ED5A6E", line_width=1,
-                                      annotation_text="Concentrado (>5000)", annotation_position="bottom right",
-                                      annotation_font_color="#ED5A6E", annotation_font_size=9)
 
-                    _chart_layout(fig_hhi, f"{nome_fundo} — Indice HHI de Concentracao",
-                                  height=350, y_title="HHI (0-10.000)", y_suffix="")
+                    # Faixas de referência com shape (áreas coloridas)
+                    _faixas = [
+                        (0, 20, "rgba(107,222,151,0.07)", "#6BDE97", "Bem diversificado"),
+                        (20, 40, "rgba(255,187,0,0.07)", "#FFBB00", "Moderado"),
+                        (40, 60, "rgba(255,136,83,0.07)", "#FF8853", "Concentrado"),
+                        (60, 100, "rgba(237,90,110,0.07)", "#ED5A6E", "Muito concentrado"),
+                    ]
+                    for _y0, _y1, _fill, _lcolor, _label in _faixas:
+                        fig_hhi.add_hrect(
+                            y0=_y0, y1=_y1,
+                            fillcolor=_fill,
+                            line_width=0,
+                        )
+                        fig_hhi.add_hline(
+                            y=_y0 if _y0 > 0 else _y1,
+                            line_dash="dot", line_color=_lcolor, line_width=1,
+                            annotation_text=_label, annotation_position="bottom right",
+                            annotation_font_color=_lcolor, annotation_font_size=9,
+                        )
+
+                    _chart_layout(fig_hhi, f"{nome_fundo} — Indice HHI* Normalizado",
+                                  height=380, y_title="HHI* (0–100)", y_suffix="")
+                    fig_hhi.update_yaxes(range=[0, max(max(_hhi_norm_vals) * 1.15, 25)])
                     st.plotly_chart(fig_hhi, use_container_width=True)
 
                     # ─── Número de Ativos ao longo do tempo ───
@@ -957,6 +993,154 @@ def main():
                                             st.markdown(f"- :red[{_a}]{_pct_str}")
                                     else:
                                         st.markdown("*Sem saidas*")
+
+            # ─── Principais Mudanças vs Mês Anterior ───
+            _datas_all = sorted(df_f["data"].unique())
+            if len(_datas_all) >= 2:
+                _dt_curr = _datas_all[-1]
+                _dt_prev = _datas_all[-2]
+                _snap_curr = df_f[df_f["data"] == _dt_curr].copy()
+                _snap_prev = df_f[df_f["data"] == _dt_prev].copy()
+
+                st.markdown(f"""<div style="margin-top: 18px; padding: 6px 0 4px 0; border-bottom: 2px solid {TAG_VERMELHO}40;">
+                    <span style="color: {TAG_LARANJA}; font-weight: 700; font-size: 1.05rem;">
+                    Principais Mudancas: {pd.Timestamp(_dt_prev).strftime('%b/%Y')} → {pd.Timestamp(_dt_curr).strftime('%b/%Y')}
+                    </span></div>""", unsafe_allow_html=True)
+
+                # --- Mudanças por SETOR ---
+                _setor_curr = _snap_curr.groupby("setor")["pct_pl"].sum()
+                _setor_prev = _snap_prev.groupby("setor")["pct_pl"].sum()
+                _all_setores = sorted(set(_setor_curr.index) | set(_setor_prev.index))
+
+                _setor_changes = []
+                for _s in _all_setores:
+                    _curr_v = _setor_curr.get(_s, 0.0)
+                    _prev_v = _setor_prev.get(_s, 0.0)
+                    _diff = _curr_v - _prev_v
+                    if abs(_diff) >= 0.1:  # só mostra se mudou >= 0.1pp
+                        _setor_changes.append({"Setor": _s, "Anterior": _prev_v, "Atual": _curr_v, "Var (pp)": _diff})
+
+                _setor_changes.sort(key=lambda x: abs(x["Var (pp)"]), reverse=True)
+
+                if _setor_changes:
+                    _ch_cols = st.columns(2)
+
+                    # Gráfico waterfall de setores
+                    with _ch_cols[0]:
+                        _sc_sorted = sorted(_setor_changes, key=lambda x: x["Var (pp)"])
+                        _sc_names = [x["Setor"] for x in _sc_sorted]
+                        _sc_vals = [x["Var (pp)"] for x in _sc_sorted]
+                        _sc_colors = [_hex_to_rgba("#6BDE97", 0.8) if v > 0 else _hex_to_rgba("#ED5A6E", 0.8) for v in _sc_vals]
+
+                        fig_setor_ch = go.Figure()
+                        fig_setor_ch.add_trace(go.Bar(
+                            y=_sc_names, x=_sc_vals,
+                            orientation="h",
+                            marker_color=_sc_colors,
+                            hovertemplate="<b>%{y}</b><br>Variacao: %{x:+.1f} pp<extra></extra>",
+                            text=[f"{v:+.1f}pp" for v in _sc_vals],
+                            textposition="outside",
+                            textfont=dict(size=10, color=TAG_OFFWHITE),
+                        ))
+                        fig_setor_ch.add_vline(x=0, line_color=TEXT_MUTED, line_width=1)
+                        _chart_layout(fig_setor_ch, "Var. Setorial (pp)",
+                                      height=max(220, len(_sc_names) * 30 + 80),
+                                      y_title="", y_suffix="")
+                        fig_setor_ch.update_xaxes(title_text="pp", ticksuffix="pp")
+                        st.plotly_chart(fig_setor_ch, use_container_width=True)
+
+                    # Tabela de setores
+                    with _ch_cols[1]:
+                        _setor_html = f"""<table style="width:100%; border-collapse:collapse; font-size:0.82rem;">
+                        <thead><tr style="background:{TAG_BG_CARD}; border-bottom: 2px solid {TAG_VERMELHO}40;">
+                            <th style="text-align:left; padding:6px 8px; color:{TAG_OFFWHITE};">Setor</th>
+                            <th style="text-align:right; padding:6px 8px; color:{TAG_OFFWHITE};">Anterior</th>
+                            <th style="text-align:right; padding:6px 8px; color:{TAG_OFFWHITE};">Atual</th>
+                            <th style="text-align:right; padding:6px 8px; color:{TAG_OFFWHITE};">Var (pp)</th>
+                        </tr></thead><tbody>"""
+                        for _i, _sc in enumerate(_setor_changes[:15]):
+                            _row_bg = TAG_BG_CARD_ALT if _i % 2 == 1 else "transparent"
+                            _var_color = "#6BDE97" if _sc["Var (pp)"] > 0 else "#ED5A6E"
+                            _arrow = "▲" if _sc["Var (pp)"] > 0 else "▼"
+                            _setor_html += f"""<tr style="background:{_row_bg}; border-bottom: 1px solid {TAG_VERMELHO}15;">
+                                <td style="padding:5px 8px; color:{TAG_OFFWHITE};">{_sc['Setor']}</td>
+                                <td style="padding:5px 8px; text-align:right; color:{TEXT_MUTED};">{_sc['Anterior']:.1f}%</td>
+                                <td style="padding:5px 8px; text-align:right; color:{TAG_OFFWHITE};">{_sc['Atual']:.1f}%</td>
+                                <td style="padding:5px 8px; text-align:right; color:{_var_color}; font-weight:600;">{_arrow} {_sc['Var (pp)']:+.1f}pp</td>
+                            </tr>"""
+                        _setor_html += "</tbody></table>"
+                        st.markdown(_setor_html, unsafe_allow_html=True)
+
+                # --- Mudanças por ATIVO (top aumentos e reduções) ---
+                _w_curr = dict(zip(_snap_curr["ativo"], _snap_curr["pct_pl"].fillna(0)))
+                _w_prev = dict(zip(_snap_prev["ativo"], _snap_prev["pct_pl"].fillna(0)))
+                _all_at = set(_w_curr.keys()) | set(_w_prev.keys())
+
+                _ativo_changes = []
+                for _a in _all_at:
+                    _cv = _w_curr.get(_a, 0.0)
+                    _pv = _w_prev.get(_a, 0.0)
+                    _d = _cv - _pv
+                    if abs(_d) >= 0.1:
+                        _status = "Novo" if _a not in _w_prev else ("Saiu" if _a not in _w_curr else "")
+                        _ativo_changes.append({"Ativo": _a, "Anterior": _pv, "Atual": _cv, "Var (pp)": _d, "Status": _status})
+
+                _ativo_changes.sort(key=lambda x: x["Var (pp)"], reverse=True)
+
+                if _ativo_changes:
+                    _top_up = [x for x in _ativo_changes if x["Var (pp)"] > 0][:10]
+                    _top_dn = [x for x in _ativo_changes if x["Var (pp)"] < 0][-10:]
+                    _top_dn.sort(key=lambda x: x["Var (pp)"])
+
+                    _at_cols = st.columns(2)
+
+                    with _at_cols[0]:
+                        st.markdown(f"<span style='color:{TAG_OFFWHITE}; font-weight:600; font-size:0.9rem;'>📈 Maiores Aumentos</span>", unsafe_allow_html=True)
+                        if _top_up:
+                            _up_html = f"""<table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+                            <thead><tr style="background:{TAG_BG_CARD}; border-bottom: 2px solid {TAG_VERMELHO}40;">
+                                <th style="text-align:left; padding:5px 6px; color:{TAG_OFFWHITE};">Ativo</th>
+                                <th style="text-align:right; padding:5px 6px; color:{TAG_OFFWHITE};">Ant.</th>
+                                <th style="text-align:right; padding:5px 6px; color:{TAG_OFFWHITE};">Atual</th>
+                                <th style="text-align:right; padding:5px 6px; color:{TAG_OFFWHITE};">Var</th>
+                            </tr></thead><tbody>"""
+                            for _i, _ac in enumerate(_top_up):
+                                _row_bg = TAG_BG_CARD_ALT if _i % 2 == 1 else "transparent"
+                                _badge = f" <span style='color:#6BDE97; font-size:0.7rem;'>NOVO</span>" if _ac["Status"] == "Novo" else ""
+                                _up_html += f"""<tr style="background:{_row_bg};">
+                                    <td style="padding:4px 6px; color:{TAG_OFFWHITE};">{_ac['Ativo']}{_badge}</td>
+                                    <td style="padding:4px 6px; text-align:right; color:{TEXT_MUTED};">{_ac['Anterior']:.1f}%</td>
+                                    <td style="padding:4px 6px; text-align:right; color:{TAG_OFFWHITE};">{_ac['Atual']:.1f}%</td>
+                                    <td style="padding:4px 6px; text-align:right; color:#6BDE97; font-weight:600;">+{_ac['Var (pp)']:.1f}pp</td>
+                                </tr>"""
+                            _up_html += "</tbody></table>"
+                            st.markdown(_up_html, unsafe_allow_html=True)
+                        else:
+                            st.caption("Sem aumentos significativos")
+
+                    with _at_cols[1]:
+                        st.markdown(f"<span style='color:{TAG_OFFWHITE}; font-weight:600; font-size:0.9rem;'>📉 Maiores Reducoes</span>", unsafe_allow_html=True)
+                        if _top_dn:
+                            _dn_html = f"""<table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+                            <thead><tr style="background:{TAG_BG_CARD}; border-bottom: 2px solid {TAG_VERMELHO}40;">
+                                <th style="text-align:left; padding:5px 6px; color:{TAG_OFFWHITE};">Ativo</th>
+                                <th style="text-align:right; padding:5px 6px; color:{TAG_OFFWHITE};">Ant.</th>
+                                <th style="text-align:right; padding:5px 6px; color:{TAG_OFFWHITE};">Atual</th>
+                                <th style="text-align:right; padding:5px 6px; color:{TAG_OFFWHITE};">Var</th>
+                            </tr></thead><tbody>"""
+                            for _i, _ac in enumerate(_top_dn):
+                                _row_bg = TAG_BG_CARD_ALT if _i % 2 == 1 else "transparent"
+                                _badge = f" <span style='color:#ED5A6E; font-size:0.7rem;'>SAIU</span>" if _ac["Status"] == "Saiu" else ""
+                                _dn_html += f"""<tr style="background:{_row_bg};">
+                                    <td style="padding:4px 6px; color:{TAG_OFFWHITE};">{_ac['Ativo']}{_badge}</td>
+                                    <td style="padding:4px 6px; text-align:right; color:{TEXT_MUTED};">{_ac['Anterior']:.1f}%</td>
+                                    <td style="padding:4px 6px; text-align:right; color:{TAG_OFFWHITE};">{_ac['Atual']:.1f}%</td>
+                                    <td style="padding:4px 6px; text-align:right; color:#ED5A6E; font-weight:600;">{_ac['Var (pp)']:.1f}pp</td>
+                                </tr>"""
+                            _dn_html += "</tbody></table>"
+                            st.markdown(_dn_html, unsafe_allow_html=True)
+                        else:
+                            st.caption("Sem reducoes significativas")
 
             if idx < len(fundos_sel) - 1:
                 st.markdown('<div class="tag-section-divider"></div>', unsafe_allow_html=True)
