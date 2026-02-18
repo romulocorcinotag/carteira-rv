@@ -12,7 +12,7 @@ from data_loader import (
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Paleta TAG Investimentos — Dark Futurista
+# Paleta TAG Investimentos — Tema Claro
 # ──────────────────────────────────────────────────────────────────────────────
 TAG_VERMELHO = "#630D24"
 TAG_OFFWHITE = "#E6E4DB"
@@ -21,31 +21,25 @@ TAG_BRANCO = "#FFFFFF"
 TAG_CINZA_ESCURO = "#2C1A1A"
 TAG_CINZA_MEDIO = "#6A6864"
 TAG_AZUL_ESCURO = "#002A6E"
-# Dark theme tokens
-DARK_BG = "#0A0A0F"            # Fundo principal quase preto
-DARK_SURFACE = "#12121A"       # Cards, containers
-DARK_SURFACE_2 = "#1A1A25"     # Elevação secundária
-DARK_BORDER = "#2A2A3A"        # Bordas sutis
-DARK_TEXT = "#E8E8F0"          # Texto principal
-DARK_TEXT_MUTED = "#8888A0"    # Texto secundário
-ACCENT_GLOW = "#FF885340"      # Laranja com glow
-ACCENT_RED_GLOW = "#630D2450"  # Vermelho com glow
-# Cores para gráficos — mais brilhantes que o branding para visibilidade
-CHART_RED = "#E84466"          # Vermelho vibrante (substitui TAG_VERMELHO nos charts)
-CHART_GRID = "#2A2A3D"         # Grid mais visível
-# Paleta de apoio para gráficos (cores vibrantes sobre fundo escuro)
+# Light theme tokens
+CARD_BG = "#FFFFFF"
+TEXT_COLOR = "#2C1A1A"
+TEXT_MUTED = "#777777"
+BORDER_COLOR = "#E0DDD5"
+CHART_GRID = "#eeeeee"
+# Paleta de apoio para gráficos
 TAG_CHART_COLORS = [
-    "#FF8853",  # Laranja (alta visibilidade no dark)
-    "#5C85F7",  # Azul
-    "#6BDE97",  # Verde
-    "#A485F2",  # Lilás
-    "#58C6F5",  # Azul claro
-    "#FFBB00",  # Amarelo
-    "#ED5A6E",  # Rosa
-    "#FF6B6B",  # Coral
-    "#477C88",  # Teal
-    "#C4B5FD",  # Lavanda
-    "#34D399",  # Esmeralda
+    "#FF8853",  # Laranja
+    "#2563EB",  # Azul
+    "#16A34A",  # Verde
+    "#7C3AED",  # Lilás
+    "#0891B2",  # Azul claro
+    "#CA8A04",  # Amarelo escuro
+    "#DC2626",  # Vermelho
+    "#DB2777",  # Rosa
+    "#0D9488",  # Teal
+    "#6D28D9",  # Roxo
+    "#059669",  # Esmeralda
 ]
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -72,497 +66,224 @@ def get_logo_base64():
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# CSS — Dark Futurista com glassmorphism
+# CSS — Tema Claro TAG Investimentos
 # ──────────────────────────────────────────────────────────────────────────────
 def inject_css():
     st.markdown(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-
         /* ══════════════════════════════════════════════════
-           BASE — Dark theme, no gray bars
+           BASE / GLOBAL
         ══════════════════════════════════════════════════ */
         .stApp {{
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-            background: {DARK_BG} !important;
-            color: {DARK_TEXT} !important;
+            font-family: 'Tahoma', 'Inter', 'Segoe UI', sans-serif;
+            font-size: 16px;
         }}
-        /* Remove Streamlit's default top bar / toolbar / deploy button */
-        header[data-testid="stHeader"] {{
-            background: {DARK_BG} !important;
-            border-bottom: none !important;
+        .stMarkdown p, .stMarkdown li {{
+            font-size: 1.05rem !important;
+            line-height: 1.7 !important;
         }}
-        .stDeployButton, [data-testid="stToolbar"] {{
-            display: none !important;
+        .stMarkdown h4 {{
+            font-size: 1.35rem !important;
+            font-weight: 700 !important;
         }}
-        /* Remove Streamlit bottom footer */
-        footer {{
-            display: none !important;
+        .stCaption, [data-testid="stCaptionContainer"] {{
+            font-size: 0.9rem !important;
         }}
-        /* Subtle background gradient overlay */
-        .stApp::before {{
-            content: ''; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-            background: radial-gradient(ellipse at 15% 0%, rgba(99,13,36,0.12) 0%, transparent 50%),
-                        radial-gradient(ellipse at 85% 100%, rgba(88,198,245,0.04) 0%, transparent 50%);
-            pointer-events: none; z-index: 0;
+        .stButton > button {{
+            padding: 0.6rem 1.5rem !important;
+            font-size: 1.05rem !important;
+            font-weight: 600 !important;
+            border-radius: 8px !important;
+        }}
+        .stSelectbox label, .stMultiSelect label,
+        [data-testid="stWidgetLabel"] label {{
+            font-size: 1rem !important;
+            font-weight: 600 !important;
         }}
         .stMainBlockContainer {{
             max-width: 1400px;
             padding-top: 0.5rem !important;
         }}
-        /* ── Text — brighter defaults ── */
-        .stMarkdown p, .stMarkdown li {{
-            font-size: 0.9rem !important;
-            line-height: 1.6 !important;
-            color: #C0C0D0 !important;
+        .stDeployButton, [data-testid="stToolbar"] {{
+            display: none !important;
         }}
-        h1, h2, h3 {{
-            color: #F0F0F8 !important;
-            font-family: 'Inter', sans-serif !important;
-        }}
-        h3 {{
-            font-size: 1.1rem !important;
-            font-weight: 700 !important;
-            color: {DARK_TEXT} !important;
-        }}
-
-        /* ══════════════════════════════════════════════════
-           TABS — pill style
-        ══════════════════════════════════════════════════ */
-        .stTabs [data-baseweb="tab-list"] {{
-            gap: 2px; background: {DARK_SURFACE};
-            border-radius: 10px; padding: 4px;
-            border: 1px solid {DARK_BORDER};
-        }}
-        .stTabs [data-baseweb="tab"] {{
-            font-size: 12px !important; font-weight: 600 !important;
-            padding: 10px 20px !important; color: #A0A0B8 !important;
-            text-transform: uppercase !important; letter-spacing: 0.8px !important;
-            border-radius: 8px !important; border: none !important;
-            transition: all 0.25s ease !important;
-            background: transparent !important;
-        }}
-        .stTabs [data-baseweb="tab"]:hover {{
-            color: {TAG_LARANJA} !important;
-            background: {DARK_SURFACE_2} !important;
-        }}
-        .stTabs [aria-selected="true"] {{
-            font-weight: 700 !important; color: #FFFFFF !important;
-            background: linear-gradient(135deg, {TAG_LARANJA}, #FF6B3D) !important;
-            box-shadow: 0 2px 12px {ACCENT_GLOW} !important;
-        }}
-        .stTabs [data-baseweb="tab-highlight"],
-        .stTabs [data-baseweb="tab-border"] {{
+        footer {{
             display: none !important;
         }}
 
         /* ══════════════════════════════════════════════════
-           DATAFRAMES (st.dataframe)
+           TABS — vermelho underline
         ══════════════════════════════════════════════════ */
-        .stDataFrame {{
-            border-radius: 10px !important;
-            overflow: hidden !important;
+        .stTabs [data-baseweb="tab-list"] {{
+            gap: 0px;
+        }}
+        .stTabs [data-baseweb="tab"] {{
+            font-size: 16px !important;
+            font-weight: 500 !important;
+            padding: 14px 28px !important;
+            color: #666 !important;
+        }}
+        .stTabs [aria-selected="true"] {{
+            font-weight: 700 !important;
+            color: {TAG_VERMELHO} !important;
+            border-bottom: 3px solid {TAG_VERMELHO} !important;
+        }}
+
+        /* ══════════════════════════════════════════════════
+           DATAFRAMES
+        ══════════════════════════════════════════════════ */
+        .stDataFrame [data-testid="stDataFrameResizable"] {{
+            font-size: 15px !important;
+        }}
+        .stDataFrame table {{
+            font-size: 15px !important;
         }}
         .stDataFrame th {{
-            font-size: 10px !important; font-weight: 700 !important;
-            padding: 10px 14px !important; text-transform: uppercase !important;
-            letter-spacing: 0.6px !important;
-            background: {DARK_SURFACE_2} !important; color: {TAG_LARANJA} !important;
-            border-bottom: 1px solid {DARK_BORDER} !important;
+            font-size: 15px !important;
+            font-weight: 700 !important;
+            padding: 12px 16px !important;
+            background: {TAG_VERMELHO} !important;
+            color: {TAG_BRANCO} !important;
         }}
         .stDataFrame td {{
-            padding: 8px 14px !important; font-size: 13px !important;
-            color: {DARK_TEXT} !important;
-            background: {DARK_SURFACE} !important;
-            border-bottom: 1px solid {DARK_BORDER}80 !important;
+            padding: 10px 16px !important;
+            line-height: 1.5 !important;
         }}
         .stDataFrame [role="columnheader"] {{
-            color: {TAG_LARANJA} !important;
-            background: {DARK_SURFACE_2} !important;
-        }}
-        .stDataFrame [role="gridcell"] {{
-            color: {DARK_TEXT} !important;
-            background: {DARK_SURFACE} !important;
+            color: {TAG_BRANCO} !important;
+            background: {TAG_VERMELHO} !important;
         }}
 
         /* ══════════════════════════════════════════════════
            MARKDOWN TABLES
         ══════════════════════════════════════════════════ */
         .stMarkdown table {{
-            width: 100% !important; border-collapse: collapse !important;
-            margin: 12px 0 !important; border-radius: 10px !important;
-            overflow: hidden !important;
+            width: 100% !important;
+            border-collapse: collapse !important;
+            margin: 12px 0 !important;
+            font-size: 1rem !important;
         }}
         .stMarkdown table th {{
-            background: {DARK_SURFACE_2} !important; color: {TAG_LARANJA} !important;
-            padding: 11px 16px !important; text-align: left !important;
-            font-weight: 700 !important; font-size: 10px !important;
-            text-transform: uppercase !important; letter-spacing: 0.6px !important;
-            border-bottom: 1px solid {DARK_BORDER} !important;
+            background: {TAG_VERMELHO} !important;
+            color: {TAG_BRANCO} !important;
+            padding: 12px 18px !important;
+            text-align: left !important;
+            font-weight: 600 !important;
+            font-size: 1rem !important;
         }}
         .stMarkdown table td {{
-            padding: 10px 16px !important; border-bottom: 1px solid {DARK_BORDER}60 !important;
-            font-size: 13px !important; color: {DARK_TEXT} !important;
-            background: transparent !important;
+            padding: 10px 18px !important;
+            border-bottom: 1px solid #eee !important;
+            font-size: 1rem !important;
         }}
         .stMarkdown table tr:nth-child(even) td {{
-            background: {DARK_SURFACE_2}80 !important;
-        }}
-        .stMarkdown table tr:hover td {{
-            background: {DARK_SURFACE_2} !important;
-        }}
-
-        /* ══════════════════════════════════════════════════
-           INPUTS — dark background + bright text (ULTRA agressivo)
-        ══════════════════════════════════════════════════ */
-        /* --- Labels de todos os widgets — BRANCO PURO --- */
-        .stSelectbox label, .stMultiSelect label, .stDateInput label,
-        .stSlider label, .stNumberInput label, .stTextInput label,
-        .stRadio label, .stCheckbox label,
-        [data-testid="stWidgetLabel"], [data-testid="stWidgetLabel"] *,
-        [data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span,
-        .stSelectbox [data-testid="stWidgetLabel"],
-        .stMultiSelect [data-testid="stWidgetLabel"],
-        label, .stApp label,
-        .stApp [data-testid="stWidgetLabel"] p,
-        .stApp [data-testid="stWidgetLabel"] span,
-        .stApp .stSelectbox p, .stApp .stMultiSelect p {{
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-            font-size: 12px !important; text-transform: uppercase !important;
-            letter-spacing: 0.5px !important; font-weight: 700 !important;
-            opacity: 1 !important;
-        }}
-
-        /* --- Container do select/multiselect — borda mais visível --- */
-        .stSelectbox > div > div,
-        .stMultiSelect > div > div,
-        .stDateInput > div > div,
-        .stSelectbox [data-baseweb="select"],
-        .stMultiSelect [data-baseweb="select"],
-        [data-baseweb="select"],
-        [data-baseweb="select"] > div {{
-            background: {DARK_SURFACE} !important;
-            background-color: {DARK_SURFACE} !important;
-            border: 1px solid #3A3A50 !important;
-            border-radius: 8px !important;
-            color: #FFFFFF !important;
-        }}
-
-        /* --- Texto dentro dos selects (valor selecionado, placeholder) --- */
-        [data-baseweb="select"] span,
-        [data-baseweb="select"] div,
-        [data-baseweb="select"] input,
-        [data-baseweb="select"] [data-testid="stMarkdownContainer"],
-        [data-baseweb="select"] [data-testid="stMarkdownContainer"] p,
-        .stSelectbox div[data-baseweb="select"] *,
-        .stMultiSelect div[data-baseweb="select"] * {{
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-        }}
-        /* Placeholder "Choose options" / "Select..." */
-        [data-baseweb="select"] [aria-live="polite"],
-        [data-baseweb="select"] .css-1dimb5e-singleValue,
-        [data-baseweb="select"] .css-qbdosj-Input input,
-        [data-baseweb="select"] input::placeholder {{
-            color: #B0B0C8 !important;
-            -webkit-text-fill-color: #B0B0C8 !important;
-            opacity: 1 !important;
-        }}
-
-        /* --- Focus state --- */
-        .stSelectbox > div > div:focus-within,
-        .stMultiSelect > div > div:focus-within {{
-            border-color: {TAG_LARANJA} !important;
-            box-shadow: 0 0 0 2px {ACCENT_GLOW} !important;
-        }}
-
-        /* --- Todos os inputs genéricos — BRANCO --- */
-        .stDateInput input, .stNumberInput input, .stTextInput input {{
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-            background: {DARK_SURFACE} !important;
-        }}
-        .stApp input, .stApp select, .stApp textarea {{
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-            background-color: {DARK_SURFACE} !important;
-        }}
-
-        /* --- Dropdown arrow / icons --- */
-        .stSelectbox svg, .stMultiSelect svg, .stDateInput svg {{
-            fill: #B0B0C8 !important;
-        }}
-
-        /* --- Slider --- */
-        .stSlider [data-testid="stTickBarMin"],
-        .stSlider [data-testid="stTickBarMax"],
-        .stSlider div[data-baseweb="slider"] div {{
-            color: {DARK_TEXT} !important;
-        }}
-
-        /* ── Multiselect pills ── */
-        span[data-baseweb="tag"] {{
-            background: linear-gradient(135deg, {TAG_VERMELHO}, #8B1A3A) !important;
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-            border-radius: 6px !important; font-size: 11px !important;
-            font-weight: 600 !important;
-        }}
-        .stMultiSelect [data-baseweb="tag"] button {{
-            color: white !important;
-        }}
-
-        /* ── Dropdown / Popover menus ── */
-        [data-baseweb="popover"] {{
-            background: {DARK_SURFACE_2} !important;
-            background-color: {DARK_SURFACE_2} !important;
-            border: 1px solid #4A4A60 !important;
-        }}
-        [data-baseweb="popover"] > div,
-        [data-baseweb="popover"] > div > div {{
-            background: {DARK_SURFACE_2} !important;
-            background-color: {DARK_SURFACE_2} !important;
-        }}
-        [data-baseweb="menu"] {{
-            background: {DARK_SURFACE_2} !important;
-            background-color: {DARK_SURFACE_2} !important;
-        }}
-        /* Selectbox dropdown UL (Streamlit virtual dropdown) */
-        [data-testid="stSelectboxVirtualDropdown"],
-        [data-testid="stSelectboxVirtualDropdown"] ul,
-        [data-baseweb="popover"] ul {{
-            background: {DARK_SURFACE_2} !important;
-            background-color: {DARK_SURFACE_2} !important;
-        }}
-        [data-baseweb="menu"] li,
-        [data-baseweb="menu"] [role="option"],
-        [role="option"],
-        [role="listbox"] li,
-        [data-baseweb="menu"] li *,
-        [role="option"] *,
-        [role="option"] span,
-        [role="option"] div,
-        [data-testid="stSelectboxVirtualDropdown"] li,
-        [data-testid="stSelectboxVirtualDropdown"] li * {{
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-            background-color: transparent !important;
-        }}
-        [role="option"]:hover,
-        [data-baseweb="menu"] li:hover,
-        [data-testid="stSelectboxVirtualDropdown"] li:hover {{
-            background: #2A2A40 !important;
-            background-color: #2A2A40 !important;
-        }}
-        [aria-selected="true"][role="option"],
-        [aria-selected="true"][role="option"] * {{
-            background: {TAG_VERMELHO}40 !important;
-            background-color: {TAG_VERMELHO}40 !important;
-            color: #FFFFFF !important;
-            -webkit-text-fill-color: #FFFFFF !important;
-        }}
-        /* Highlighted (focused) option in dropdown */
-        [data-baseweb="menu"] li[aria-selected="true"],
-        [data-baseweb="menu"] li[data-highlighted="true"],
-        [data-baseweb="menu"] li[class*="highlighted"] {{
-            background: #2A2A40 !important;
-        }}
-        /* Calendar */
-        [data-baseweb="calendar"], [data-baseweb="calendar"] div {{
-            background: {DARK_SURFACE} !important;
-            color: {DARK_TEXT} !important;
+            background: #f9f8f5 !important;
         }}
 
         /* ══════════════════════════════════════════════════
            HEADER
         ══════════════════════════════════════════════════ */
         .tag-header {{
-            display: flex; align-items: center; gap: 20px;
-            padding: 16px 0 12px 0;
+            display: flex;
+            align-items: center;
+            gap: 24px;
+            padding: 24px 0 18px 0;
+            margin-bottom: 8px;
         }}
         .tag-logo-box {{
-            background: linear-gradient(135deg, {TAG_VERMELHO}, #8B1A3A);
+            background: {TAG_VERMELHO};
             border-radius: 14px;
-            padding: 14px 20px; display: flex; align-items: center;
-            justify-content: center; min-height: 56px;
-            box-shadow: 0 4px 20px {ACCENT_RED_GLOW};
+            padding: 14px 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 56px;
         }}
-        .tag-logo-box img {{ height: 48px; filter: brightness(0) invert(1); }}
+        .tag-logo-box img {{
+            height: 56px;
+            filter: brightness(0) invert(1);
+        }}
         .tag-header-text h1 {{
-            margin: 0; font-size: 2rem; font-weight: 800;
-            background: linear-gradient(135deg, #FFFFFF, {TAG_LARANJA});
-            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: {TAG_VERMELHO};
             letter-spacing: -0.5px;
         }}
         .tag-header-text p {{
-            margin: 4px 0 0 0; font-size: 0.75rem; color: #8888A8;
-            letter-spacing: 2px; text-transform: uppercase; font-weight: 500;
+            margin: 4px 0 0 0;
+            font-size: 1.1rem;
+            color: #777;
+            font-weight: 400;
         }}
 
         /* ── Dividers ── */
         .tag-divider {{
-            height: 2px; border: none;
-            background: linear-gradient(90deg, {TAG_LARANJA}, {TAG_VERMELHO}80, transparent);
-            margin: 12px 0 20px 0; opacity: 0.7;
+            height: 3px;
+            background: linear-gradient(90deg, {TAG_VERMELHO}, {TAG_LARANJA}, transparent);
+            margin: 22px 0;
+            border: none;
         }}
         .tag-section-divider {{
             height: 1px; border: none;
-            background: linear-gradient(90deg, {DARK_BORDER}, transparent);
+            background: linear-gradient(90deg, #ccc, transparent);
             margin: 32px 0 24px 0;
         }}
 
         /* ══════════════════════════════════════════════════
-           METRIC CARDS (glass)
+           METRIC CARDS
         ══════════════════════════════════════════════════ */
         .tag-metric-card {{
-            background: {DARK_SURFACE};
-            border: 1px solid {DARK_BORDER};
+            background: {TAG_BRANCO};
             border-radius: 12px;
-            padding: 20px 14px; text-align: center;
-            position: relative; overflow: hidden;
-            transition: all 0.3s ease;
-        }}
-        .tag-metric-card::before {{
-            content: ''; position: absolute; top: 0; left: 0; right: 0;
-            height: 2px;
-            background: linear-gradient(90deg, {TAG_LARANJA}, {TAG_VERMELHO});
-        }}
-        .tag-metric-card:hover {{
-            border-color: {TAG_LARANJA}40;
-            box-shadow: 0 4px 24px rgba(255,136,83,0.08);
-            transform: translateY(-1px);
+            padding: 28px 20px;
+            text-align: center;
+            border-left: 5px solid {TAG_VERMELHO};
+            box-shadow: 0 2px 12px rgba(0,0,0,0.07);
         }}
         .tag-metric-card .value {{
-            font-size: 1.5rem; font-weight: 800;
-            color: #F0F0F8; line-height: 1.15;
-            font-family: 'Inter', sans-serif;
+            font-size: 3rem;
+            font-weight: 700;
+            color: {TAG_VERMELHO};
+            line-height: 1;
         }}
         .tag-metric-card .label {{
-            font-size: 0.68rem; color: #9898B0;
-            margin-bottom: 8px; font-weight: 600;
-            text-transform: uppercase; letter-spacing: 1px;
+            font-size: 1rem;
+            color: #777;
+            margin-top: 8px;
+            font-weight: 500;
         }}
 
         /* ── Section titles ── */
         .tag-section-title {{
-            font-size: 0.85rem; font-weight: 700; color: {TAG_LARANJA};
+            font-size: 1.1rem; font-weight: 700; color: {TAG_VERMELHO};
             margin: 32px 0 12px 0; padding-bottom: 8px;
-            border-bottom: 1px solid {DARK_BORDER};
-            text-transform: uppercase; letter-spacing: 1.2px;
-            font-family: 'Inter', sans-serif;
+            border-bottom: 2px solid {BORDER_COLOR};
         }}
 
         /* ══════════════════════════════════════════════════
            MISC ELEMENTS
         ══════════════════════════════════════════════════ */
         .stCaption {{
-            font-size: 0.78rem !important; color: #9898B0 !important;
-        }}
-        .stAlert {{
-            background: {DARK_SURFACE} !important;
-            border-color: {DARK_BORDER} !important;
-        }}
-        .stAlert p {{
-            color: {DARK_TEXT} !important;
+            font-size: 0.9rem !important;
         }}
         div[data-testid="stSidebar"] {{ display: none !important; }}
 
         /* ── Expander ── */
         details {{
-            background: {DARK_SURFACE} !important;
-            border: 1px solid {DARK_BORDER} !important;
             border-radius: 10px !important;
         }}
         details summary {{
-            font-weight: 600 !important; color: {TAG_LARANJA} !important;
-            font-size: 0.85rem !important;
+            font-weight: 600 !important;
+            font-size: 0.95rem !important;
         }}
-        details summary span {{
-            color: {TAG_LARANJA} !important;
-        }}
-
-        /* ── Scrollbar ── */
-        ::-webkit-scrollbar {{ width: 5px; }}
-        ::-webkit-scrollbar-track {{ background: transparent; }}
-        ::-webkit-scrollbar-thumb {{ background: {DARK_BORDER}; border-radius: 3px; }}
-        ::-webkit-scrollbar-thumb:hover {{ background: {TAG_LARANJA}60; }}
 
         /* ── Plotly containers ── */
         .stPlotlyChart {{
-            background: {DARK_SURFACE} !important;
-            border: 1px solid {DARK_BORDER} !important;
             border-radius: 12px !important;
-            padding: 8px !important;
             margin-bottom: 16px !important;
         }}
-        .stPlotlyChart .modebar {{
-            background: transparent !important;
-        }}
-        .stPlotlyChart .modebar-btn path {{
-            fill: #7070888 !important;
-        }}
-
-        /* ── Labels / Radio / Checkbox / Metric ── */
-        .stRadio label, .stCheckbox label, .stRadio span, .stCheckbox span {{
-            color: {DARK_TEXT} !important;
-        }}
-        /* Streamlit caption / small text */
-        .stCaption, .stCaption p, small {{
-            color: #B0B0C8 !important;
-        }}
-        /* Select box placeholder text */
-        [data-baseweb="select"] [data-testid="stMarkdownContainer"] p {{
-            color: {DARK_TEXT} !important;
-        }}
-        /* All paragraph text inside widgets */
-        .stSelectbox p, .stMultiSelect p, .stDateInput p,
-        .stSlider p, .stNumberInput p, .stTextInput p {{
-            color: #D0D0E0 !important;
-        }}
-        [data-testid="stMetricValue"] {{
-            color: {DARK_TEXT} !important;
-        }}
-        [data-testid="stMetricLabel"] {{
-            color: #9898B0 !important;
-        }}
     </style>
-    """, unsafe_allow_html=True)
-
-    # JavaScript no iframe principal para forçar estilos inline do Streamlit
-    # IMPORTANTE: st.markdown roda dentro do iframe do Streamlit (ao contrário de st.html)
-    st.markdown("""
-    <script>
-    function fixFilterColors() {
-        // Labels
-        document.querySelectorAll('[data-testid="stWidgetLabel"] p, [data-testid="stWidgetLabel"] span').forEach(function(el) {
-            el.style.setProperty('color', '#FFFFFF', 'important');
-            el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
-            el.style.setProperty('font-weight', '700', 'important');
-        });
-        // Texto selecionado dentro dos selects
-        document.querySelectorAll('[data-baseweb="select"] span, [data-baseweb="select"] div').forEach(function(el) {
-            if (!el.closest('svg') && !el.querySelector('svg')) {
-                el.style.setProperty('color', '#FFFFFF', 'important');
-                el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
-            }
-        });
-        // DROPDOWN: fundo escuro no UL e containers
-        document.querySelectorAll('[data-testid="stSelectboxVirtualDropdown"], [data-baseweb="popover"] ul, [data-baseweb="popover"] > div, [data-baseweb="popover"] > div > div').forEach(function(el) {
-            el.style.setProperty('background-color', '#1A1A25', 'important');
-            el.style.setProperty('background', '#1A1A25', 'important');
-        });
-        // Opções do dropdown: texto branco
-        document.querySelectorAll('[role="option"], [role="option"] div, [role="option"] span').forEach(function(el) {
-            el.style.setProperty('color', '#FFFFFF', 'important');
-            el.style.setProperty('-webkit-text-fill-color', '#FFFFFF', 'important');
-        });
-    }
-    fixFilterColors();
-    var __fRuns = 0;
-    var __fInterval = setInterval(function() { fixFilterColors(); __fRuns++; if (__fRuns > 60) clearInterval(__fInterval); }, 300);
-    new MutationObserver(function() { setTimeout(fixFilterColors, 30); }).observe(document.body, {childList: true, subtree: true});
-    </script>
     """, unsafe_allow_html=True)
 
 
@@ -601,10 +322,10 @@ def render_header():
             </div>
         </div>
         <div style="text-align: right;">
-            <div style="font-size: 0.65rem; color: {DARK_TEXT_MUTED}; text-transform: uppercase;
+            <div style="font-size: 0.75rem; color: #777; text-transform: uppercase;
                         letter-spacing: 1px; font-weight: 600;">Dados ate</div>
-            <div style="font-size: 0.85rem; color: {DARK_TEXT}; font-weight: 700;
-                        margin-top: 2px; font-family: 'Inter', monospace;">{data_atualizacao}</div>
+            <div style="font-size: 1rem; color: {TAG_CINZA_ESCURO}; font-weight: 700;
+                        margin-top: 2px;">{data_atualizacao}</div>
         </div>
     </div>
     <div class="tag-divider"></div>
@@ -634,46 +355,44 @@ def _hex_to_rgba(hex_color, alpha=0.8):
 
 def _chart_layout(fig, title, height=480, y_title="% do PL", y_suffix="%",
                   legend_h=True, margin_b=40):
-    """Aplica layout dark futurista a um gráfico Plotly."""
+    """Aplica layout claro TAG a um gráfico Plotly."""
     legend = dict(
         orientation="h", yanchor="bottom", y=1.02,
-        font=dict(size=10, color=DARK_TEXT_MUTED, family="Inter, sans-serif"),
+        font=dict(size=10, color=TEXT_MUTED, family="Tahoma, sans-serif"),
         bgcolor="rgba(0,0,0,0)",
     ) if legend_h else dict(
-        font=dict(size=10, color=DARK_TEXT_MUTED, family="Inter, sans-serif")
+        font=dict(size=10, color=TEXT_MUTED, family="Tahoma, sans-serif")
     )
 
-    grid_color = CHART_GRID  # grid visível no dark
-
     layout_kwargs = dict(
-        height=height, template="plotly_dark",
+        height=height, template="plotly_white",
         xaxis=dict(
-            tickfont=dict(size=9, color=DARK_TEXT_MUTED),
-            gridcolor=grid_color, gridwidth=1,
-            linecolor=DARK_BORDER, linewidth=1,
+            tickfont=dict(size=9, color=TEXT_MUTED),
+            gridcolor=CHART_GRID, gridwidth=1,
+            linecolor=BORDER_COLOR, linewidth=1,
         ),
         legend=legend,
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
         margin=dict(l=50, r=16, t=50 if title else 30, b=margin_b),
-        font=dict(family="Inter, sans-serif", color=DARK_TEXT),
+        font=dict(family="Tahoma, sans-serif", color=TEXT_COLOR),
         hoverlabel=dict(
-            bgcolor=DARK_SURFACE, font_size=12,
-            font_color=DARK_TEXT,
+            bgcolor=CARD_BG, font_size=12,
+            font_color=TEXT_COLOR,
             bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4),
         ),
         hovermode="x unified",
     )
     if title:
-        layout_kwargs["title"] = dict(text=title, font=dict(size=13, color=TAG_LARANJA, family="Inter, sans-serif"))
+        layout_kwargs["title"] = dict(text=title, font=dict(size=14, color=TAG_VERMELHO, family="Tahoma, sans-serif"))
     if y_title:
         layout_kwargs["yaxis"] = dict(
-            title=dict(text=y_title, font=dict(size=10, color=DARK_TEXT_MUTED)),
+            title=dict(text=y_title, font=dict(size=10, color=TEXT_MUTED)),
             ticksuffix=y_suffix,
-            tickfont=dict(size=9, color=DARK_TEXT_MUTED),
-            gridcolor=grid_color, gridwidth=1,
-            zeroline=True, zerolinecolor="#3A3A50", zerolinewidth=1,
-            linecolor=DARK_BORDER, linewidth=1,
+            tickfont=dict(size=9, color=TEXT_MUTED),
+            gridcolor=CHART_GRID, gridwidth=1,
+            zeroline=True, zerolinecolor="#ccc", zerolinewidth=1,
+            linecolor=BORDER_COLOR, linewidth=1,
         )
     fig.update_layout(**layout_kwargs)
     return fig
@@ -731,9 +450,9 @@ def grafico_pl(df_pl, titulo):
     fig.add_trace(go.Scatter(
         x=df_pl["data"], y=df_pl["pl"] / 1e6,
         mode="lines+markers",
-        line=dict(width=2.5, color=CHART_RED),
-        marker=dict(size=5, color=CHART_RED),
-        fill="tozeroy", fillcolor=_hex_to_rgba(CHART_RED, 0.12),
+        line=dict(width=2.5, color=TAG_VERMELHO),
+        marker=dict(size=5, color=TAG_VERMELHO),
+        fill="tozeroy", fillcolor=_hex_to_rgba(TAG_VERMELHO, 0.12),
         hovertemplate="<b>%{x|%b/%Y}</b><br>R$ %{y:,.1f}M<extra></extra>",
     ))
     return _chart_layout(fig, titulo, height=400, y_title="PL (R$ milhoes)", y_suffix="",
@@ -792,8 +511,8 @@ def grafico_concentracao(df, cnpj, titulo_prefix):
         x=datas, y=top1_pcts,
         name="Maior posicao",
         mode="lines+markers",
-        line=dict(width=2.5, color=CHART_RED),
-        marker=dict(size=5, color=CHART_RED),
+        line=dict(width=2.5, color=TAG_VERMELHO),
+        marker=dict(size=5, color=TAG_VERMELHO),
         customdata=top1_nomes,
         hovertemplate="<b>%{x|%b/%Y}</b><br>%{customdata}: %{y:.1f}%<extra></extra>",
     ))
@@ -847,24 +566,24 @@ def render_tabela_carteira_html(tbl):
             bar_color = "#58C6F5"
 
         rank = i + 1
-        zebra = DARK_SURFACE_2 if i % 2 == 1 else DARK_SURFACE
+        zebra = "#f9f8f5" if i % 2 == 1 else CARD_BG
 
         rows_html += f"""
         <tr style="background: {zebra}; transition: background 0.2s;">
-            <td style="padding: 10px 14px; text-align: center; font-weight: 600; color: {DARK_TEXT_MUTED}; font-size: 12px; width: 40px;">{rank}</td>
-            <td style="padding: 10px 14px; font-weight: 700; color: {DARK_TEXT}; font-size: 14px; white-space: nowrap;">
+            <td style="padding: 10px 14px; text-align: center; font-weight: 600; color: {TEXT_MUTED}; font-size: 12px; width: 40px;">{rank}</td>
+            <td style="padding: 10px 14px; font-weight: 700; color: {TEXT_COLOR}; font-size: 14px; white-space: nowrap;">
                 {row['Ativo']}
             </td>
-            <td style="padding: 10px 14px; color: {DARK_TEXT_MUTED}; font-size: 13px;">{row['Setor']}</td>
-            <td style="padding: 10px 14px; text-align: right; font-family: 'Inter', monospace; font-size: 13px; color: {DARK_TEXT};">
+            <td style="padding: 10px 14px; color: {TEXT_MUTED}; font-size: 13px;">{row['Setor']}</td>
+            <td style="padding: 10px 14px; text-align: right; font-family: 'Inter', monospace; font-size: 13px; color: {TEXT_COLOR};">
                 {row['Valor']}
             </td>
             <td style="padding: 10px 14px; width: 200px;">
                 <div style="display: flex; align-items: center; gap: 10px;">
-                    <div style="flex: 1; background: {DARK_BORDER}; border-radius: 4px; height: 18px; overflow: hidden;">
+                    <div style="flex: 1; background: {BORDER_COLOR}; border-radius: 4px; height: 18px; overflow: hidden;">
                         <div style="width: {bar_width}%; height: 100%; background: linear-gradient(90deg, {bar_color}, {TAG_LARANJA}80); border-radius: 4px; transition: width 0.3s;"></div>
                     </div>
-                    <span style="font-weight: 700; font-size: 13px; color: {DARK_TEXT}; min-width: 52px; text-align: right;">
+                    <span style="font-weight: 700; font-size: 13px; color: {TEXT_COLOR}; min-width: 52px; text-align: right;">
                         {row['% PL']}
                     </span>
                 </div>
@@ -877,30 +596,30 @@ def render_tabela_carteira_html(tbl):
     nota_pct = ""
     if total_pct < 85:
         nota_pct = f"""
-        <tr style="background: {DARK_SURFACE};">
-            <td colspan="5" style="padding: 8px 14px; font-size: 10px; color: {DARK_TEXT_MUTED}; text-align: center;">
+        <tr style="background: {CARD_BG};">
+            <td colspan="5" style="padding: 8px 14px; font-size: 10px; color: {TEXT_MUTED}; text-align: center;">
                 * O % PL e calculado sobre o patrimonio total do fundo. Fundos com posicoes em renda fixa, caixa ou derivativos terao alocacao em acoes inferior a 100%.
             </td>
         </tr>"""
 
     html = f"""
-    <div style="border-radius: 12px; overflow: hidden; border: 1px solid {DARK_BORDER}; margin: 8px 0 16px 0; background: {DARK_SURFACE};">
-        <table style="width: 100%; border-collapse: collapse; font-family: 'Inter', sans-serif;">
+    <div style="border-radius: 12px; overflow: hidden; border: 1px solid {BORDER_COLOR}; margin: 8px 0 16px 0; background: {CARD_BG};">
+        <table style="width: 100%; border-collapse: collapse; font-family: Tahoma, sans-serif;">
             <thead>
-                <tr style="background: {DARK_SURFACE_2}; border-bottom: 1px solid {DARK_BORDER};">
-                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: center; width: 36px; text-transform: uppercase; letter-spacing: 0.8px;">#</th>
-                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: 0.8px;">Ativo</th>
-                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: 0.8px;">Setor</th>
-                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: right; text-transform: uppercase; letter-spacing: 0.8px;">Valor</th>
-                    <th style="padding: 10px 14px; color: {TAG_LARANJA}; font-size: 10px; font-weight: 700; text-align: left; width: 200px; text-transform: uppercase; letter-spacing: 0.8px;">% PL</th>
+                <tr style="background: {TAG_VERMELHO}; border-bottom: 1px solid {BORDER_COLOR};">
+                    <th style="padding: 10px 14px; color: {TAG_BRANCO}; font-size: 10px; font-weight: 700; text-align: center; width: 36px; text-transform: uppercase; letter-spacing: 0.8px;">#</th>
+                    <th style="padding: 10px 14px; color: {TAG_BRANCO}; font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: 0.8px;">Ativo</th>
+                    <th style="padding: 10px 14px; color: {TAG_BRANCO}; font-size: 10px; font-weight: 700; text-align: left; text-transform: uppercase; letter-spacing: 0.8px;">Setor</th>
+                    <th style="padding: 10px 14px; color: {TAG_BRANCO}; font-size: 10px; font-weight: 700; text-align: right; text-transform: uppercase; letter-spacing: 0.8px;">Valor</th>
+                    <th style="padding: 10px 14px; color: {TAG_BRANCO}; font-size: 10px; font-weight: 700; text-align: left; width: 200px; text-transform: uppercase; letter-spacing: 0.8px;">% PL</th>
                 </tr>
             </thead>
             <tbody>
                 {rows_html}
             </tbody>
             <tfoot>
-                <tr style="background: {DARK_SURFACE_2}; border-top: 1px solid {DARK_BORDER};">
-                    <td colspan="4" style="padding: 10px 14px; font-weight: 600; color: {DARK_TEXT_MUTED}; font-size: 12px; text-align: right;">
+                <tr style="background: {CARD_BG}; border-top: 1px solid {BORDER_COLOR};">
+                    <td colspan="4" style="padding: 10px 14px; font-weight: 600; color: {TEXT_MUTED}; font-size: 12px; text-align: right;">
                         {n_ativos} ativos &nbsp;|&nbsp; Total alocado em acoes:
                     </td>
                     <td style="padding: 10px 14px; font-weight: 700; font-size: 14px; color: {TAG_LARANJA};">
@@ -1077,15 +796,15 @@ def main():
                         hovertemplate="<b>HHI</b><br>%{x|%d/%m/%Y}: %{y:.0f}<extra></extra>",
                     ))
                     # Faixas de referência
-                    fig_hhi.add_hline(y=2500, line_dash="dot", line_color="#6BDE97", line_width=1,
+                    fig_hhi.add_hline(y=2500, line_dash="dot", line_color="#16A34A", line_width=1,
                                       annotation_text="Diversificado (<2500)", annotation_position="bottom right",
-                                      annotation_font_color="#6BDE97", annotation_font_size=9)
+                                      annotation_font_color="#16A34A", annotation_font_size=9)
                     fig_hhi.add_hline(y=5000, line_dash="dot", line_color="#FFBB00", line_width=1,
                                       annotation_text="Moderado (2500-5000)", annotation_position="bottom right",
                                       annotation_font_color="#FFBB00", annotation_font_size=9)
-                    fig_hhi.add_hline(y=7500, line_dash="dot", line_color="#FF6B6B", line_width=1,
+                    fig_hhi.add_hline(y=7500, line_dash="dot", line_color="#DC2626", line_width=1,
                                       annotation_text="Concentrado (>5000)", annotation_position="bottom right",
-                                      annotation_font_color="#FF6B6B", annotation_font_size=9)
+                                      annotation_font_color="#DC2626", annotation_font_size=9)
 
                     _chart_layout(fig_hhi, f"{nome_fundo} — Indice HHI de Concentracao",
                                   height=350, y_title="HHI (0-10.000)", y_suffix="")
@@ -1137,7 +856,7 @@ def main():
                     fig_turn.add_trace(go.Bar(
                         x=_turnover_dates, y=_turnover_vals,
                         name="Turnover (% PL)",
-                        marker_color=_hex_to_rgba(CHART_RED, 0.7),
+                        marker_color=_hex_to_rgba(TAG_VERMELHO, 0.7),
                         hovertemplate="<b>Turnover</b><br>%{x|%d/%m/%Y}: %{y:.1f}%<extra></extra>",
                     ))
                     _chart_layout(fig_turn, f"{nome_fundo} — Turnover da Carteira",
@@ -1149,13 +868,13 @@ def main():
                     fig_es.add_trace(go.Bar(
                         x=_turnover_dates, y=_entradas_list,
                         name="Entradas",
-                        marker_color=_hex_to_rgba("#6BDE97", 0.8),
+                        marker_color=_hex_to_rgba("#16A34A", 0.8),
                         hovertemplate="<b>Entradas</b><br>%{x|%d/%m/%Y}: %{y} ativos<extra></extra>",
                     ))
                     fig_es.add_trace(go.Bar(
                         x=_turnover_dates, y=[-s for s in _saidas_list],
                         name="Saidas",
-                        marker_color=_hex_to_rgba("#FF6B6B", 0.8),
+                        marker_color=_hex_to_rgba("#DC2626", 0.8),
                         hovertemplate="<b>Saidas</b><br>%{x|%d/%m/%Y}: %{customdata} ativos<extra></extra>",
                         customdata=_saidas_list,
                     ))
@@ -1332,22 +1051,22 @@ def main():
                 y=labels,
                 text=text_ativos,
                 texttemplate="%{text}",
-                textfont=dict(size=11, color=DARK_TEXT),
+                textfont=dict(size=11, color=TEXT_COLOR),
                 colorscale=[
-                    [0, DARK_SURFACE_2], [0.25, "#2A3060"],
-                    [0.5, "#3f51b5"], [0.75, "#5C85F7"],
-                    [1, "#58C6F5"]
+                    [0, "#f7f7f7"], [0.25, "#c6dbef"],
+                    [0.5, "#6baed6"], [0.75, "#2171b5"],
+                    [1, "#08306b"]
                 ],
                 hovertemplate="<b>%{y}</b> x <b>%{x}</b><br>Sobreposicao: %{text}<extra></extra>",
                 showscale=True,
-                colorbar=dict(title="% PL", ticksuffix="%", tickfont=dict(color=DARK_TEXT_MUTED)),
+                colorbar=dict(title="% PL", ticksuffix="%", tickfont=dict(color=TEXT_MUTED)),
             ))
             fig_heat_a.update_layout(
                 height=max(420, 70 * n + 140),
-                template="plotly_dark",
-                xaxis=dict(tickangle=45, side="bottom", tickfont=dict(color=DARK_TEXT_MUTED)),
-                yaxis=dict(autorange="reversed", tickfont=dict(color=DARK_TEXT_MUTED)),
-                font=dict(family="Inter, sans-serif", size=11, color=DARK_TEXT),
+                template="plotly_white",
+                xaxis=dict(tickangle=45, side="bottom", tickfont=dict(color=TEXT_MUTED)),
+                yaxis=dict(autorange="reversed", tickfont=dict(color=TEXT_MUTED)),
+                font=dict(family="Tahoma, sans-serif", size=11, color=TEXT_COLOR),
                 margin=dict(l=10, r=10, t=20, b=120),
                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
             )
@@ -1382,22 +1101,22 @@ def main():
                 y=labels,
                 text=text_setores,
                 texttemplate="%{text}",
-                textfont=dict(size=11, color=DARK_TEXT),
+                textfont=dict(size=11, color=TEXT_COLOR),
                 colorscale=[
-                    [0, DARK_SURFACE_2], [0.25, "#3D1520"],
-                    [0.5, "#7A1E35"], [0.75, "#B44A5E"],
-                    [1, TAG_LARANJA]
+                    [0, "#f7f7f7"], [0.25, "#fdd0a2"],
+                    [0.5, "#fd8d3c"], [0.75, "#d94801"],
+                    [1, "#7f2704"]
                 ],
                 hovertemplate="<b>%{y}</b> x <b>%{x}</b><br>Sobreposicao: %{text}<extra></extra>",
                 showscale=True,
-                colorbar=dict(title="% PL", ticksuffix="%", tickfont=dict(color=DARK_TEXT_MUTED)),
+                colorbar=dict(title="% PL", ticksuffix="%", tickfont=dict(color=TEXT_MUTED)),
             ))
             fig_heat_s.update_layout(
                 height=max(420, 70 * n + 140),
-                template="plotly_dark",
-                xaxis=dict(tickangle=45, side="bottom", tickfont=dict(color=DARK_TEXT_MUTED)),
-                yaxis=dict(autorange="reversed", tickfont=dict(color=DARK_TEXT_MUTED)),
-                font=dict(family="Inter, sans-serif", size=11, color=DARK_TEXT),
+                template="plotly_white",
+                xaxis=dict(tickangle=45, side="bottom", tickfont=dict(color=TEXT_MUTED)),
+                yaxis=dict(autorange="reversed", tickfont=dict(color=TEXT_MUTED)),
+                font=dict(family="Tahoma, sans-serif", size=11, color=TEXT_COLOR),
                 margin=dict(l=10, r=10, t=20, b=120),
                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
             )
@@ -1434,14 +1153,14 @@ def main():
 
                 fig_bar.update_layout(
                     barmode="group",
-                    height=480, template="plotly_dark",
+                    height=480, template="plotly_white",
                     yaxis=dict(title="% do PL", ticksuffix="%", gridcolor=CHART_GRID,
-                               tickfont=dict(color=DARK_TEXT_MUTED)),
-                    xaxis=dict(tickfont=dict(color=DARK_TEXT_MUTED)),
+                               tickfont=dict(color=TEXT_MUTED)),
+                    xaxis=dict(tickfont=dict(color=TEXT_MUTED)),
                     plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                    font=dict(family="Inter, sans-serif", color=DARK_TEXT),
+                    font=dict(family="Tahoma, sans-serif", color=TEXT_COLOR),
                     legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                                font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                font=dict(size=10, color=TEXT_MUTED)),
                     margin=dict(l=40, r=20, t=20, b=40),
                 )
                 st.plotly_chart(fig_bar, width="stretch")
@@ -1646,18 +1365,18 @@ def main():
                         y=_corr_labels_list,
                         text=_corr_text,
                         texttemplate="%{text}",
-                        textfont=dict(size=11, color=TAG_BRANCO),
+                        textfont=dict(size=11, color=TEXT_COLOR),
                         colorscale=[
-                            [0.0, "#1a1a2e"],
-                            [0.3, "#16213e"],
-                            [0.5, "#0f3460"],
-                            [0.7, "#e94560"],
-                            [1.0, "#FF8853"],
+                            [0.0, "#f7f7f7"],
+                            [0.3, "#fdd0a2"],
+                            [0.5, "#fd8d3c"],
+                            [0.7, "#e6550d"],
+                            [1.0, "#630D24"],
                         ],
                         zmin=0, zmax=1,
                         colorbar=dict(
-                            title=dict(text="Correlacao", font=dict(size=10, color=DARK_TEXT_MUTED)),
-                            tickfont=dict(size=9, color=DARK_TEXT_MUTED),
+                            title=dict(text="Correlacao", font=dict(size=10, color=TEXT_MUTED)),
+                            tickfont=dict(size=9, color=TEXT_MUTED),
                             bgcolor="rgba(0,0,0,0)",
                         ),
                         hovertemplate="<b>%{x}</b> × <b>%{y}</b><br>Correlacao: %{z:.3f}<extra></extra>",
@@ -1667,11 +1386,11 @@ def main():
                         height=max(400, 60 * len(_corr_all)),
                         plot_bgcolor="rgba(0,0,0,0)",
                         paper_bgcolor="rgba(0,0,0,0)",
-                        font=dict(family="Inter, sans-serif", color=DARK_TEXT),
-                        xaxis=dict(tickfont=dict(size=9, color=DARK_TEXT_MUTED), side="bottom"),
-                        yaxis=dict(tickfont=dict(size=9, color=DARK_TEXT_MUTED), autorange="reversed"),
+                        font=dict(family="Tahoma, sans-serif", color=TEXT_COLOR),
+                        xaxis=dict(tickfont=dict(size=9, color=TEXT_MUTED), side="bottom"),
+                        yaxis=dict(tickfont=dict(size=9, color=TEXT_MUTED), autorange="reversed"),
                         margin=dict(l=120, r=50, t=30, b=120),
-                        hoverlabel=dict(bgcolor=DARK_SURFACE, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
+                        hoverlabel=dict(bgcolor=CARD_BG, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
                     )
                     st.plotly_chart(fig_corr, use_container_width=True)
 
@@ -1977,16 +1696,16 @@ def main():
                                 ))
 
                             fig_cap.update_layout(
-                                height=480, template="plotly_dark",
-                                xaxis=dict(title=dict(text="Downside Capture (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
-                                           ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor=CHART_GRID),
-                                yaxis=dict(title=dict(text="Upside Capture (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
-                                           ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor=CHART_GRID),
-                                font=dict(family="Inter, sans-serif", color=DARK_TEXT),
-                                legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                height=480, template="plotly_white",
+                                xaxis=dict(title=dict(text="Downside Capture (%)", font=dict(size=10, color=TEXT_MUTED)),
+                                           ticksuffix="%", tickfont=dict(size=9, color=TEXT_MUTED), gridcolor=CHART_GRID),
+                                yaxis=dict(title=dict(text="Upside Capture (%)", font=dict(size=10, color=TEXT_MUTED)),
+                                           ticksuffix="%", tickfont=dict(size=9, color=TEXT_MUTED), gridcolor=CHART_GRID),
+                                font=dict(family="Tahoma, sans-serif", color=TEXT_COLOR),
+                                legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10, color=TEXT_MUTED)),
                                 margin=dict(l=50, r=16, t=40, b=50),
                                 plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                                hoverlabel=dict(bgcolor=DARK_SURFACE, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
+                                hoverlabel=dict(bgcolor=CARD_BG, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
                                 hovermode="closest",
                             )
                             st.plotly_chart(fig_cap, use_container_width=True)
@@ -2049,8 +1768,8 @@ def main():
                         # Faixas de referência (dark)
                         fig_te.add_hrect(y0=0, y1=2, fillcolor="rgba(42,42,58,0.5)", line_width=0, layer="below")
                         fig_te.add_hrect(y0=2, y1=8, fillcolor="rgba(92,133,247,0.06)", line_width=0, layer="below")
-                        fig_te.add_hline(y=2, line_dash="dot", line_color="#4A4A60", line_width=1, annotation_text="Closet Indexer", annotation_position="top left", annotation_font_color=DARK_TEXT_MUTED)
-                        fig_te.add_hline(y=8, line_dash="dot", line_color="#4A4A60", line_width=1, annotation_text="Alta Convicção", annotation_position="top left", annotation_font_color=DARK_TEXT_MUTED)
+                        fig_te.add_hline(y=2, line_dash="dot", line_color="#ccc", line_width=1, annotation_text="Closet Indexer", annotation_position="top left", annotation_font_color=TEXT_MUTED)
+                        fig_te.add_hline(y=8, line_dash="dot", line_color="#ccc", line_width=1, annotation_text="Alta Convicção", annotation_position="top left", annotation_font_color=TEXT_MUTED)
 
                         bench_r = pivot_ret[ibov_cnpj]
                         for i, cnpj in enumerate(fund_cols):
@@ -2129,16 +1848,16 @@ def main():
                             ))
                         fig_scatter.add_hline(y=0, line_dash="dot", line_color="#ccc", line_width=1)
                         fig_scatter.update_layout(
-                            height=480, template="plotly_dark",
-                            xaxis=dict(title=dict(text="Ulcer Index (risco)", font=dict(size=10, color=DARK_TEXT_MUTED)),
-                                       zeroline=True, tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor=CHART_GRID),
-                            yaxis=dict(title=dict(text="Retorno Anualizado (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
-                                       ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor=CHART_GRID),
-                            font=dict(family="Inter, sans-serif", color=DARK_TEXT),
-                            legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10, color=DARK_TEXT_MUTED)),
+                            height=480, template="plotly_white",
+                            xaxis=dict(title=dict(text="Ulcer Index (risco)", font=dict(size=10, color=TEXT_MUTED)),
+                                       zeroline=True, tickfont=dict(size=9, color=TEXT_MUTED), gridcolor=CHART_GRID),
+                            yaxis=dict(title=dict(text="Retorno Anualizado (%)", font=dict(size=10, color=TEXT_MUTED)),
+                                       ticksuffix="%", tickfont=dict(size=9, color=TEXT_MUTED), gridcolor=CHART_GRID),
+                            font=dict(family="Tahoma, sans-serif", color=TEXT_COLOR),
+                            legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10, color=TEXT_MUTED)),
                             margin=dict(l=50, r=16, t=40, b=50),
                             plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                            hoverlabel=dict(bgcolor=DARK_SURFACE, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
+                            hoverlabel=dict(bgcolor=CARD_BG, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
                             hovermode="closest",
                         )
                         st.plotly_chart(fig_scatter, use_container_width=True)
@@ -2423,7 +2142,7 @@ def main():
                             ))
                         fig_beta.add_hline(y=1, line_dash="dot", line_color="#ccc", line_width=1,
                                            annotation_text="Beta = 1", annotation_position="top left",
-                                           annotation_font_color=DARK_TEXT_MUTED)
+                                           annotation_font_color=TEXT_MUTED)
                         _chart_layout(fig_beta, "", height=400, y_title="Beta vs IBOV", y_suffix="")
                         st.plotly_chart(fig_beta, use_container_width=True)
 
@@ -2482,16 +2201,16 @@ def main():
                                         hovertemplate=f"<b>{row_r['label']}</b><br>Bull: {row_r['bull']:.2f}%/mes<br>Bear: {row_r['bear']:.2f}%/mes<extra></extra>",
                                     ))
                                 fig_regime.update_layout(
-                                    height=480, template="plotly_dark",
-                                    xaxis=dict(title=dict(text="Ret. Medio Mensal BEAR (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
-                                               ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor=CHART_GRID),
-                                    yaxis=dict(title=dict(text="Ret. Medio Mensal BULL (%)", font=dict(size=10, color=DARK_TEXT_MUTED)),
-                                               ticksuffix="%", tickfont=dict(size=9, color=DARK_TEXT_MUTED), gridcolor=CHART_GRID),
-                                    font=dict(family="Inter, sans-serif", color=DARK_TEXT),
-                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10, color=DARK_TEXT_MUTED)),
+                                    height=480, template="plotly_white",
+                                    xaxis=dict(title=dict(text="Ret. Medio Mensal BEAR (%)", font=dict(size=10, color=TEXT_MUTED)),
+                                               ticksuffix="%", tickfont=dict(size=9, color=TEXT_MUTED), gridcolor=CHART_GRID),
+                                    yaxis=dict(title=dict(text="Ret. Medio Mensal BULL (%)", font=dict(size=10, color=TEXT_MUTED)),
+                                               ticksuffix="%", tickfont=dict(size=9, color=TEXT_MUTED), gridcolor=CHART_GRID),
+                                    font=dict(family="Tahoma, sans-serif", color=TEXT_COLOR),
+                                    legend=dict(orientation="h", yanchor="bottom", y=1.02, font=dict(size=10, color=TEXT_MUTED)),
                                     margin=dict(l=50, r=16, t=40, b=50),
                                     plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
-                                    hoverlabel=dict(bgcolor=DARK_SURFACE, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
+                                    hoverlabel=dict(bgcolor=CARD_BG, font_size=12, bordercolor=_hex_to_rgba(TAG_LARANJA, 0.4)),
                                     hovermode="closest",
                                 )
                                 st.plotly_chart(fig_regime, use_container_width=True)
@@ -2652,23 +2371,21 @@ def main():
                             ibov_rets[col] = 0.0
 
                     def _ibov_color(val, col):
-                        """Verde se bateu IBOV, vermelho se perdeu. Intensidade proporcional."""
+                        """Verde se bateu IBOV, vermelho se perdeu. Cores para tema claro."""
                         ibov_v = ibov_rets.get(col, 0.0)
                         diff = val - ibov_v
                         if diff >= 0:
-                            # Verde — mais intenso quanto mais acima do IBOV
-                            return "background: rgba(107,222,151,0.15); color: #6BDE97;"
+                            return "background: rgba(34,139,34,0.10); color: #1a7a1a;"
                         else:
-                            # Vermelho — mais intenso quanto mais abaixo
-                            return "background: rgba(255,60,60,0.12); color: #FF6B6B;"
+                            return "background: rgba(220,38,38,0.10); color: #b91c1c;"
 
                     # Build summary table HTML
-                    th_cells = "".join(f'<th style="padding:10px 12px; text-align:right; color:{TAG_LARANJA}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px;">{j}</th>' for j in janelas_disp)
+                    th_cells = "".join(f'<th style="padding:10px 12px; text-align:right; color:{TAG_BRANCO}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px;">{j}</th>' for j in janelas_disp)
                     summary_html = f"""
-                    <div style="border-radius:12px; overflow:hidden; border:1px solid {DARK_BORDER}; background:{DARK_SURFACE}; margin:8px 0 24px 0;">
-                    <table style="width:100%; border-collapse:collapse; font-family:'Inter',sans-serif;">
-                    <thead><tr style="background:{DARK_SURFACE_2}; border-bottom:1px solid {DARK_BORDER};">
-                        <th style="padding:10px 14px; text-align:left; color:{TAG_LARANJA}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; min-width:180px;">—</th>
+                    <div style="border-radius:12px; overflow:hidden; border:1px solid {BORDER_COLOR}; background:{CARD_BG}; margin:8px 0 24px 0;">
+                    <table style="width:100%; border-collapse:collapse; font-family:Tahoma,sans-serif;">
+                    <thead><tr style="background:{TAG_VERMELHO}; border-bottom:1px solid {BORDER_COLOR};">
+                        <th style="padding:10px 14px; text-align:left; color:{TAG_BRANCO}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px; min-width:180px;">—</th>
                         {th_cells}
                     </tr></thead><tbody>"""
 
@@ -2685,9 +2402,9 @@ def main():
                             stat_rows.append((b_name, None, "#58C6F5"))
 
                     stat_rows.extend([
-                        ("Mediana", lambda s: s.median(), DARK_TEXT),
-                        ("Media", lambda s: s.mean(), DARK_TEXT_MUTED),
-                        ("Media Bottom 20", lambda s: s.nsmallest(min(20, len(s))).mean(), "#FF6B6B"),
+                        ("Mediana", lambda s: s.median(), TEXT_COLOR),
+                        ("Media", lambda s: s.mean(), TEXT_MUTED),
+                        ("Media Bottom 20", lambda s: s.nsmallest(min(20, len(s))).mean(), "#DC2626"),
                     ])
 
                     for sr_label, sr_fn, sr_color in stat_rows:
@@ -2696,7 +2413,7 @@ def main():
                             if sr_fn is not None:
                                 vals = df_funds_only[col].dropna()
                                 if vals.empty:
-                                    cells += f'<td style="padding:8px 12px; text-align:right; color:{DARK_TEXT_MUTED};">—</td>'
+                                    cells += f'<td style="padding:8px 12px; text-align:right; color:{TEXT_MUTED};">—</td>'
                                     continue
                                 v = sr_fn(vals)
                             else:
@@ -2705,14 +2422,14 @@ def main():
                                 if b_cnpj and b_cnpj[0] in df_ret_all.index and col in df_ret_all.columns:
                                     v = df_ret_all.loc[b_cnpj[0], col]
                                     if pd.isna(v):
-                                        cells += f'<td style="padding:8px 12px; text-align:right; color:{DARK_TEXT_MUTED};">—</td>'
+                                        cells += f'<td style="padding:8px 12px; text-align:right; color:{TEXT_MUTED};">—</td>'
                                         continue
                                 else:
-                                    cells += f'<td style="padding:8px 12px; text-align:right; color:{DARK_TEXT_MUTED};">—</td>'
+                                    cells += f'<td style="padding:8px 12px; text-align:right; color:{TEXT_MUTED};">—</td>'
                                     continue
-                            neg = "color:#FF6B6B;" if v < 0 else ""
+                            neg = "color:#DC2626;" if v < 0 else ""
                             cells += f'<td style="padding:8px 12px; text-align:right; font-weight:600; font-size:13px; {neg} color:{sr_color};">{v:.1f}%</td>'
-                        summary_html += f'<tr style="border-bottom:1px solid {DARK_BORDER}60;"><td style="padding:8px 14px; font-weight:600; font-size:13px; color:{sr_color};">{sr_label}</td>{cells}</tr>'
+                        summary_html += f'<tr style="border-bottom:1px solid {BORDER_COLOR}60;"><td style="padding:8px 14px; font-weight:600; font-size:13px; color:{sr_color};">{sr_label}</td>{cells}</tr>'
 
                     summary_html += "</tbody></table></div>"
                     st.html(summary_html)
@@ -2750,36 +2467,36 @@ def main():
                         for b_name, b_cnpj in BENCHMARK_CNPJS.items():
                             if b_cnpj not in df_ret_all.index:
                                 continue
-                            bench_html += f'<tr style="background:rgba(88,198,245,0.06);border-bottom:2px solid {DARK_BORDER};position:sticky;top:0;z-index:2;">'
+                            bench_html += f'<tr style="background:rgba(88,198,245,0.06);border-bottom:2px solid {BORDER_COLOR};position:sticky;top:0;z-index:2;">'
                             bench_html += f'<td style="padding:6px 10px;text-align:center;color:#58C6F5;font-size:10px;font-weight:700;">▸</td>'
                             bench_html += f'<td style="padding:6px 10px;font-size:12px;color:#58C6F5;font-weight:700;white-space:nowrap;">{b_name}</td>'
                             for jcol in janelas_disp_inner:
                                 v = df_ret_all.loc[b_cnpj, jcol] if jcol in df_ret_all.columns else np.nan
                                 if pd.isna(v):
-                                    bench_html += f'<td style="padding:6px 8px;text-align:right;color:{DARK_TEXT_MUTED};font-size:11px;">—</td>'
+                                    bench_html += f'<td style="padding:6px 8px;text-align:right;color:{TEXT_MUTED};font-size:11px;">—</td>'
                                 else:
-                                    neg = "color:#FF6B6B;" if v < 0 else ""
+                                    neg = "color:#DC2626;" if v < 0 else ""
                                     bold = "font-weight:700;" if jcol == janela_rank_inner else ""
                                     bench_html += f'<td style="padding:6px 8px;text-align:right;font-size:11px;color:#58C6F5;{neg}{bold}">{v:.1f}%</td>'
                             bench_html += '</tr>'
                         return bench_html
 
                     # Melhores (top N)
-                    st.markdown(f'<div class="tag-section-title" style="color:#6BDE97;">Ranking Melhores — {janela_rank} <span style="color:{DARK_TEXT_MUTED};font-size:11px;font-weight:400;">({n_show} fundos) | 🟢 acima do IBOV | 🔴 abaixo do IBOV</span></div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="tag-section-title" style="color:#16A34A;">Ranking Melhores — {janela_rank} <span style="color:{TEXT_MUTED};font-size:11px;font-weight:400;">({n_show} fundos) | 🟢 acima do IBOV | 🔴 abaixo do IBOV</span></div>', unsafe_allow_html=True)
                     topN = df_funds_only.nlargest(n_show, janela_rank)[[janela_rank, "nome"]].copy()
                     topN = topN.dropna(subset=[janela_rank])
 
                     # Wrapper com scroll
                     max_h = "600px" if n_show > 25 else "none"
-                    top_html = f'<div style="border-radius:12px; border:1px solid {DARK_BORDER}; background:{DARK_SURFACE}; max-height:{max_h}; overflow-y:auto;">'
-                    top_html += f'<table style="width:100%; border-collapse:collapse; font-family:Inter,sans-serif;">'
-                    top_html += f'<thead><tr style="background:{DARK_SURFACE_2};border-bottom:1px solid {DARK_BORDER};position:sticky;top:0;z-index:3;">'
-                    top_html += f'<th style="padding:8px 10px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;width:30px;background:{DARK_SURFACE_2};">#</th>'
-                    top_html += f'<th style="padding:8px 10px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;background:{DARK_SURFACE_2};">Fundo</th>'
+                    top_html = f'<div style="border-radius:12px; border:1px solid {BORDER_COLOR}; background:{CARD_BG}; max-height:{max_h}; overflow-y:auto;">'
+                    top_html += f'<table style="width:100%; border-collapse:collapse; font-family:Tahoma,sans-serif;">'
+                    top_html += f'<thead><tr style="background:{TAG_VERMELHO};border-bottom:1px solid {BORDER_COLOR};position:sticky;top:0;z-index:3;">'
+                    top_html += f'<th style="padding:8px 10px;color:{TAG_BRANCO};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;width:30px;background:{TAG_VERMELHO};">#</th>'
+                    top_html += f'<th style="padding:8px 10px;color:{TAG_BRANCO};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;background:{TAG_VERMELHO};">Fundo</th>'
 
                     for jcol in janelas_disp:
                         bold = "font-weight:800;" if jcol == janela_rank else ""
-                        top_html += f'<th style="padding:8px 8px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}background:{DARK_SURFACE_2};">{jcol}</th>'
+                        top_html += f'<th style="padding:8px 8px;color:{TAG_BRANCO};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}background:{TAG_VERMELHO};">{jcol}</th>'
                     top_html += '</tr></thead><tbody>'
 
                     # Benchmark rows first (reference — sticky)
@@ -2787,21 +2504,21 @@ def main():
 
                     for rank_i, (cnpj_row, row) in enumerate(topN.iterrows()):
                         is_selected = cnpj_row in sel_cnpjs_set
-                        bg = f"background:rgba(107,222,151,0.08);" if is_selected else ""
-                        name_style = f"color:{TAG_LARANJA};font-weight:700;" if is_selected else f"color:{DARK_TEXT};"
-                        zb = f"background:{DARK_SURFACE_2};" if rank_i % 2 == 1 and not is_selected else ""
-                        top_html += f'<tr style="{bg}{zb}border-bottom:1px solid {DARK_BORDER}40;">'
-                        top_html += f'<td style="padding:6px 10px;text-align:center;color:{DARK_TEXT_MUTED};font-size:11px;font-weight:600;">{rank_i+1}</td>'
+                        bg = f"background:rgba(34,139,34,0.06);" if is_selected else ""
+                        name_style = f"color:{TAG_VERMELHO};font-weight:700;" if is_selected else f"color:{TEXT_COLOR};"
+                        zb = "background:#f9f8f5;" if rank_i % 2 == 1 and not is_selected else ""
+                        top_html += f'<tr style="{bg}{zb}border-bottom:1px solid #eee;">'
+                        top_html += f'<td style="padding:6px 10px;text-align:center;color:{TEXT_MUTED};font-size:11px;font-weight:600;">{rank_i+1}</td>'
                         nome_short = row["nome"][:40] + "…" if len(row["nome"]) > 40 else row["nome"]
                         top_html += f'<td style="padding:6px 10px;font-size:12px;{name_style}white-space:nowrap;">{nome_short}</td>'
 
                         for jcol in janelas_disp:
                             v = df_ret_all.loc[cnpj_row, jcol] if cnpj_row in df_ret_all.index and jcol in df_ret_all.columns else np.nan
                             if pd.isna(v):
-                                top_html += f'<td style="padding:6px 8px;text-align:right;color:{DARK_TEXT_MUTED};font-size:11px;">—</td>'
+                                top_html += f'<td style="padding:6px 8px;text-align:right;color:{TEXT_MUTED};font-size:11px;">—</td>'
                             else:
                                 qstyle = _ibov_color(v, jcol)
-                                neg = "color:#FF6B6B;" if v < 0 else ""
+                                neg = "color:#b91c1c;" if v < 0 else ""
                                 bold = "font-weight:700;" if jcol == janela_rank else ""
                                 top_html += f'<td style="padding:6px 8px;text-align:right;font-size:11px;{qstyle}{neg}{bold}border-radius:4px;">{v:.1f}%</td>'
                         top_html += '</tr>'
@@ -2809,18 +2526,18 @@ def main():
                     st.html(top_html)
 
                     # Piores (bottom N)
-                    st.markdown(f'<div class="tag-section-title" style="color:#FF6B6B;">Ranking Piores — {janela_rank}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="tag-section-title" style="color:#DC2626;">Ranking Piores — {janela_rank}</div>', unsafe_allow_html=True)
                     botN = df_funds_only.nsmallest(n_show, janela_rank)[[janela_rank, "nome"]].copy()
                     botN = botN.dropna(subset=[janela_rank])
 
-                    bot_html = f'<div style="border-radius:12px; border:1px solid {DARK_BORDER}; background:{DARK_SURFACE}; max-height:{max_h}; overflow-y:auto;">'
-                    bot_html += f'<table style="width:100%; border-collapse:collapse; font-family:Inter,sans-serif;">'
-                    bot_html += f'<thead><tr style="background:{DARK_SURFACE_2};border-bottom:1px solid {DARK_BORDER};position:sticky;top:0;z-index:3;">'
-                    bot_html += f'<th style="padding:8px 10px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;width:30px;background:{DARK_SURFACE_2};">#</th>'
-                    bot_html += f'<th style="padding:8px 10px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;background:{DARK_SURFACE_2};">Fundo</th>'
+                    bot_html = f'<div style="border-radius:12px; border:1px solid {BORDER_COLOR}; background:{CARD_BG}; max-height:{max_h}; overflow-y:auto;">'
+                    bot_html += f'<table style="width:100%; border-collapse:collapse; font-family:Tahoma,sans-serif;">'
+                    bot_html += f'<thead><tr style="background:{TAG_VERMELHO};border-bottom:1px solid {BORDER_COLOR};position:sticky;top:0;z-index:3;">'
+                    bot_html += f'<th style="padding:8px 10px;color:{TAG_BRANCO};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;width:30px;background:{TAG_VERMELHO};">#</th>'
+                    bot_html += f'<th style="padding:8px 10px;color:{TAG_BRANCO};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;background:{TAG_VERMELHO};">Fundo</th>'
                     for jcol in janelas_disp:
                         bold = "font-weight:800;" if jcol == janela_rank else ""
-                        bot_html += f'<th style="padding:8px 8px;color:{TAG_LARANJA};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}background:{DARK_SURFACE_2};">{jcol}</th>'
+                        bot_html += f'<th style="padding:8px 8px;color:{TAG_BRANCO};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}background:{TAG_VERMELHO};">{jcol}</th>'
                     bot_html += '</tr></thead><tbody>'
 
                     # Benchmark rows first (reference)
@@ -2828,21 +2545,21 @@ def main():
 
                     for rank_i, (cnpj_row, row) in enumerate(botN.iterrows()):
                         is_selected = cnpj_row in sel_cnpjs_set
-                        bg = f"background:rgba(255,60,60,0.08);" if is_selected else ""
-                        name_style = f"color:{TAG_LARANJA};font-weight:700;" if is_selected else f"color:{DARK_TEXT};"
-                        zb = f"background:{DARK_SURFACE_2};" if rank_i % 2 == 1 and not is_selected else ""
-                        bot_html += f'<tr style="{bg}{zb}border-bottom:1px solid {DARK_BORDER}40;">'
-                        bot_html += f'<td style="padding:6px 10px;text-align:center;color:{DARK_TEXT_MUTED};font-size:11px;font-weight:600;">{rank_i+1}</td>'
+                        bg = f"background:rgba(220,38,38,0.06);" if is_selected else ""
+                        name_style = f"color:{TAG_VERMELHO};font-weight:700;" if is_selected else f"color:{TEXT_COLOR};"
+                        zb = "background:#f9f8f5;" if rank_i % 2 == 1 and not is_selected else ""
+                        bot_html += f'<tr style="{bg}{zb}border-bottom:1px solid #eee;">'
+                        bot_html += f'<td style="padding:6px 10px;text-align:center;color:{TEXT_MUTED};font-size:11px;font-weight:600;">{rank_i+1}</td>'
                         nome_short = row["nome"][:40] + "…" if len(row["nome"]) > 40 else row["nome"]
                         bot_html += f'<td style="padding:6px 10px;font-size:12px;{name_style}white-space:nowrap;">{nome_short}</td>'
 
                         for jcol in janelas_disp:
                             v = df_ret_all.loc[cnpj_row, jcol] if cnpj_row in df_ret_all.index and jcol in df_ret_all.columns else np.nan
                             if pd.isna(v):
-                                bot_html += f'<td style="padding:6px 8px;text-align:right;color:{DARK_TEXT_MUTED};font-size:11px;">—</td>'
+                                bot_html += f'<td style="padding:6px 8px;text-align:right;color:{TEXT_MUTED};font-size:11px;">—</td>'
                             else:
                                 qstyle = _ibov_color(v, jcol)
-                                neg = "color:#FF6B6B;" if v < 0 else ""
+                                neg = "color:#b91c1c;" if v < 0 else ""
                                 bold = "font-weight:700;" if jcol == janela_rank else ""
                                 bot_html += f'<td style="padding:6px 8px;text-align:right;font-size:11px;{qstyle}{neg}{bold}border-radius:4px;">{v:.1f}%</td>'
                         bot_html += '</tr>'
@@ -2866,7 +2583,7 @@ def main():
                             # Quartil label
                             if pctl >= 75:
                                 q_label = "Q1"
-                                q_color = "#6BDE97"
+                                q_color = "#16A34A"
                             elif pctl >= 50:
                                 q_label = "Q2"
                                 q_color = "#FFBB00"
@@ -2875,7 +2592,7 @@ def main():
                                 q_color = "#FF8853"
                             else:
                                 q_label = "Q4"
-                                q_color = "#FF6B6B"
+                                q_color = "#DC2626"
 
                             sel_rank_rows.append({
                                 "nome": nome, "pos": pos, "total": total_ranked,
@@ -2890,16 +2607,16 @@ def main():
                                 st.markdown(f"""
                                 <div class="tag-metric-card" style="text-align:center;">
                                     <div class="label">{sr['nome'][:25]}</div>
-                                    <div class="value" style="font-size:2rem;">{sr['pos']}<span style="font-size:0.9rem;color:{DARK_TEXT_MUTED};">/{sr['total']}</span></div>
+                                    <div class="value" style="font-size:2rem;">{sr['pos']}<span style="font-size:0.9rem;color:{TEXT_MUTED};">/{sr['total']}</span></div>
                                     <div style="margin-top:8px;display:flex;justify-content:center;gap:12px;align-items:center;">
                                         <span style="background:{sr['q_color']}20;color:{sr['q_color']};padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;">{sr['q_label']}</span>
-                                        <span style="color:{DARK_TEXT_MUTED};font-size:12px;">{ret_str} ({janela_rank})</span>
+                                        <span style="color:{TEXT_MUTED};font-size:12px;">{ret_str} ({janela_rank})</span>
                                     </div>
                                     <div style="margin-top:8px;">
-                                        <div style="background:{DARK_BORDER};border-radius:4px;height:6px;overflow:hidden;">
+                                        <div style="background:{BORDER_COLOR};border-radius:4px;height:6px;overflow:hidden;">
                                             <div style="width:{sr['pctl']:.0f}%;height:100%;background:linear-gradient(90deg,{sr['q_color']},{TAG_LARANJA});border-radius:4px;"></div>
                                         </div>
-                                        <div style="font-size:10px;color:{DARK_TEXT_MUTED};margin-top:3px;">Percentil {sr['pctl']:.0f}%</div>
+                                        <div style="font-size:10px;color:{TEXT_MUTED};margin-top:3px;">Percentil {sr['pctl']:.0f}%</div>
                                     </div>
                                 </div>
                                 """, unsafe_allow_html=True)
@@ -2923,7 +2640,7 @@ def main():
                                 v = ret_vals.loc[cnpj]
                                 fig_hist.add_vline(x=v, line_dash="dash", line_color=TAG_CHART_COLORS[0], line_width=2,
                                                    annotation_text=nome.split()[0], annotation_position="top",
-                                                   annotation_font_color=DARK_TEXT, annotation_font_size=10)
+                                                   annotation_font_color=TEXT_COLOR, annotation_font_size=10)
 
                         # Marcar benchmarks
                         for b_name, b_cnpj in BENCHMARK_CNPJS.items():
@@ -2933,7 +2650,7 @@ def main():
                                     fig_hist.add_vline(x=bv, line_dash="dot", line_color="#58C6F5", line_width=1.5,
                                                        annotation_text=b_name.split("(")[0].strip()[:10],
                                                        annotation_position="top",
-                                                       annotation_font_color=DARK_TEXT_MUTED, annotation_font_size=9)
+                                                       annotation_font_color=TEXT_MUTED, annotation_font_size=9)
 
                         _chart_layout(fig_hist, "", height=350, y_title="Qtd. Fundos", y_suffix="")
                         st.plotly_chart(fig_hist, use_container_width=True)
