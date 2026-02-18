@@ -492,9 +492,9 @@ def grafico_pl(df_pl, titulo):
     fig.add_trace(go.Scatter(
         x=df_pl["data"], y=df_pl["pl"] / 1e6,
         mode="lines+markers",
-        line=dict(width=2.5, color=TAG_VERMELHO),
-        marker=dict(size=5, color=TAG_VERMELHO),
-        fill="tozeroy", fillcolor=_hex_to_rgba(TAG_VERMELHO, 0.12),
+        line=dict(width=2.5, color=TAG_LARANJA),
+        marker=dict(size=5, color=TAG_LARANJA),
+        fill="tozeroy", fillcolor=_hex_to_rgba(TAG_LARANJA, 0.15),
         hovertemplate="<b>%{x|%b/%Y}</b><br>R$ %{y:,.1f}M<extra></extra>",
     ))
     return _chart_layout(fig, titulo, height=400, y_title="PL (R$ milhoes)", y_suffix="",
@@ -804,6 +804,26 @@ def main():
                     width="stretch",
                 )
 
+            # ─── Composição por Setor ───
+            _ultima_data_s = df_f["data"].max()
+            _setor_atual = df_f[df_f["data"] == _ultima_data_s].groupby("setor")["pct_pl"].sum().sort_values(ascending=False)
+            _setor_df = _setor_atual.reset_index()
+            _setor_df.columns = ["Setor", "% PL"]
+            _setor_df["% PL"] = _setor_df["% PL"].map(lambda x: f"{x:.1f}%")
+            with st.expander("Alocacao Setorial Atual", expanded=False):
+                st.dataframe(_setor_df, width="stretch", hide_index=True)
+
+            pivot_s = preparar_pivot_setor(df_pos, cnpj)
+            if not pivot_s.empty:
+                st.plotly_chart(
+                    grafico_stacked_area(pivot_s, f"{nome_fundo} — Composicao por Setor", top_n=20),
+                    width="stretch",
+                )
+                st.plotly_chart(
+                    grafico_linhas(pivot_s, f"{nome_fundo} — Evolucao por Setor", top_n=20),
+                    width="stretch",
+                )
+
             # Gráfico de concentração (top 1 e top 5)
             fig_conc = grafico_concentracao(df_pos, cnpj, nome_fundo)
             if fig_conc is not None:
@@ -902,18 +922,6 @@ Equal-weight seria: {_eq_weight:.0f}
                                   height=380, y_title="HHI", y_suffix="")
                     fig_hhi.update_yaxes(range=[0, max(max(_hhi_vals) * 1.15, 800)])
                     st.plotly_chart(fig_hhi, use_container_width=True)
-
-                    # ─── Número de Ativos ao longo do tempo ───
-                    fig_nativos = go.Figure()
-                    fig_nativos.add_trace(go.Bar(
-                        x=_hhi_dates, y=_n_ativos_hist,
-                        name="Ativos",
-                        marker_color=_hex_to_rgba(TAG_LARANJA, 0.7),
-                        hovertemplate="<b>N. Ativos</b><br>%{x|%d/%m/%Y}: %{y}<extra></extra>",
-                    ))
-                    _chart_layout(fig_nativos, f"{nome_fundo} — Numero de Ativos na Carteira",
-                                  height=280, y_title="Qtd Ativos", y_suffix="")
-                    st.plotly_chart(fig_nativos, use_container_width=True)
 
             # ─── Turnover da Carteira ───
             # Mede mudanças na composição mês a mês
@@ -1137,45 +1145,10 @@ Equal-weight seria: {_eq_weight:.0f}
                         else:
                             st.caption("Sem reducoes significativas")
 
-            # ─── Composição por Setor ───
-            st.markdown(f"""<div style="margin-top: 24px; padding: 6px 0 4px 0; border-bottom: 2px solid {TAG_VERMELHO}40;">
-                <span style="color: {TAG_LARANJA}; font-weight: 700; font-size: 1.05rem;">
-                Composicao por Setor</span></div>""", unsafe_allow_html=True)
-
-            _ultima_data_s = df_f["data"].max()
-            _setor_atual = df_f[df_f["data"] == _ultima_data_s].groupby("setor")["pct_pl"].sum().sort_values(ascending=False)
-            _setor_df = _setor_atual.reset_index()
-            _setor_df.columns = ["Setor", "% PL"]
-            _setor_df["% PL"] = _setor_df["% PL"].map(lambda x: f"{x:.1f}%")
-            with st.expander("Alocacao Setorial Atual", expanded=False):
-                st.dataframe(_setor_df, width="stretch", hide_index=True)
-
-            pivot_s = preparar_pivot_setor(df_pos, cnpj)
-            if not pivot_s.empty:
-                st.plotly_chart(
-                    grafico_stacked_area(pivot_s, f"{nome_fundo} — Composicao por Setor", top_n=20),
-                    width="stretch",
-                )
-                st.plotly_chart(
-                    grafico_linhas(pivot_s, f"{nome_fundo} — Evolucao por Setor", top_n=20),
-                    width="stretch",
-                )
-
             # ─── Evolução do PL ───
-            st.markdown(f"""<div style="margin-top: 24px; padding: 6px 0 4px 0; border-bottom: 2px solid {TAG_VERMELHO}40;">
-                <span style="color: {TAG_LARANJA}; font-weight: 700; font-size: 1.05rem;">
-                Evolucao do Patrimonio Liquido</span></div>""", unsafe_allow_html=True)
-
             _pl_mensal = df_f.groupby("data")["pl"].first().reset_index()
             st.plotly_chart(
                 grafico_pl(_pl_mensal, f"{nome_fundo} — Patrimonio Liquido"),
-                width="stretch",
-            )
-
-            _n_ativos_pl = df_f.groupby("data")["ativo"].nunique().reset_index()
-            _n_ativos_pl.columns = ["data", "n_ativos"]
-            st.plotly_chart(
-                grafico_n_ativos(_n_ativos_pl, f"{nome_fundo} — Numero de Ativos"),
                 width="stretch",
             )
 
