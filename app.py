@@ -8,7 +8,8 @@ from collections import Counter
 
 from data_loader import (
     carregar_todos_dados, carregar_fundos_rv,
-    carregar_cotas_fundos, carregar_universo_stats, BENCHMARK_CNPJS,
+    carregar_cotas_fundos, carregar_universo_stats,
+    carregar_fundamentals_explosao, BENCHMARK_CNPJS,
 )
 from sector_map import classificar_setor
 import pdf_parser
@@ -581,12 +582,16 @@ def _chart_layout(fig, title, height=480, y_title="% do PL", y_suffix="%",
                   legend_h=True, margin_b=40):
     """Aplica layout dark TAG a um gráfico Plotly."""
     legend = dict(
-        orientation="h", yanchor="bottom", y=1.02,
+        orientation="h", yanchor="bottom", y=1.0,
+        xanchor="left", x=0,
         font=dict(size=10, color=TEXT_MUTED, family="Tahoma, sans-serif"),
         bgcolor="rgba(0,0,0,0)",
     ) if legend_h else dict(
         font=dict(size=10, color=TEXT_MUTED, family="Tahoma, sans-serif")
     )
+
+    # Margem superior maior quando há título + legenda horizontal
+    _mt = 70 if title and legend_h else (50 if title else 30)
 
     layout_kwargs = dict(
         height=height, template="plotly_dark",
@@ -598,7 +603,7 @@ def _chart_layout(fig, title, height=480, y_title="% do PL", y_suffix="%",
         legend=legend,
         plot_bgcolor="rgba(0,0,0,0)",
         paper_bgcolor="rgba(0,0,0,0)",
-        margin=dict(l=50, r=16, t=50 if title else 30, b=margin_b),
+        margin=dict(l=50, r=16, t=_mt, b=margin_b),
         font=dict(family="Tahoma, sans-serif", color=TAG_OFFWHITE),
         hoverlabel=dict(
             bgcolor=TAG_BG_CARD, font_size=12,
@@ -609,7 +614,11 @@ def _chart_layout(fig, title, height=480, y_title="% do PL", y_suffix="%",
         colorway=TAG_CHART_COLORS,
     )
     if title:
-        layout_kwargs["title"] = dict(text=title, font=dict(size=14, color=TAG_LARANJA, family="Tahoma, sans-serif"))
+        layout_kwargs["title"] = dict(
+            text=title,
+            font=dict(size=14, color=TAG_LARANJA, family="Tahoma, sans-serif"),
+            y=0.98, yanchor="top",
+        )
     if y_title:
         layout_kwargs["yaxis"] = dict(
             title=dict(text=y_title, font=dict(size=10, color=TEXT_MUTED)),
@@ -3018,6 +3027,265 @@ Equal-weight seria: {_eq_weight:.0f}
 # ──────────────────────────────────────────────────────────────────────────────
 # EXPLOSÃO — Função dedicada (fora do main para manter legibilidade)
 # ──────────────────────────────────────────────────────────────────────────────
+
+# ── ETF → Índice B3: mapeamento de tickers de ETFs para códigos de índice na B3 ──
+_ETF_INDEX_MAP = {
+    "BOVA11": "IBOV",
+    "SMAL11": "SMLL",
+    "BOVV11": "IBOV",
+    "BOVB11": "IBOV",
+    "DIVO11": "IDIV",
+    "BRAX11": "IBRX",
+    "PIBB11": "IBXX",
+    "MATB11": "IMAT",
+    "FIND11": "IFNC",
+    "ISUS11": "ISEE",
+    "ECOO11": "ICO2",
+    "GOVE11": "IGCT",
+    "UTIP11": "UTIL",
+}
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def _fetch_etf_composition(ticker: str) -> dict:
+    """Busca composição de um ETF via API da B3 (índice subjacente).
+    Retorna dict {ticker_acao: peso_pct, ...} ou dict vazio se não disponível.
+    """
+    idx_code = _ETF_INDEX_MAP.get(ticker.upper())
+    if not idx_code:
+        return {}
+
+    try:
+        import requests, json, base64
+        payload = json.dumps({
+            "language": "pt-br",
+            "pageNumber": 1,
+            "pageSize": 200,
+            "index": idx_code,
+            "action": "3",
+        })
+        encoded = base64.b64encode(payload.encode()).decode()
+        url = f"https://sistemaswebb3-listados.b3.com.br/indexProxy/indexCall/GetPortfolioDay/{encoded}"
+        r = requests.get(url, timeout=15, headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code != 200:
+            return {}
+        data = r.json()
+        results = data.get("results")
+        if not results:
+            return {}
+        composition = {}
+        for item in results:
+            cod = item.get("cod", "").strip()
+            part_str = item.get("part", "0").replace(",", ".")
+            try:
+                part = float(part_str)
+            except (ValueError, TypeError):
+                part = 0.0
+            if cod and part > 0:
+                composition[cod] = part
+        return composition
+    except Exception:
+        return {}
+
+
+@st.cache_data(ttl=600)
+def _compute_historical_explosion(
+    _portfolio_key: str,
+    portfolio_cnpjs: list,
+    portfolio_pesos: list,
+    foco_map_items: list,
+    mono_ativo_items: list,
+    df_posicoes_serialized: bytes,
+    direct_stock_items: list = None,
+    etf_composition_json: str = None,
+) -> pd.DataFrame:
+    """Computa a explosão histórica: para cada mês em posicoes_consolidado,
+    aplica os pesos do PDF (proxy fixo) a cada fundo subjacente.
+    Inclui ações diretas e ETFs explodidos como peso fixo em todos os meses.
+
+    Retorna DataFrame com: data, ativo, setor, exposicao_pct
+    """
+    import io as _io
+    import json as _json
+
+    df_posicoes = pd.read_parquet(_io.BytesIO(df_posicoes_serialized))
+    df_posicoes["data"] = pd.to_datetime(df_posicoes["data"])
+    foco_map = dict(foco_map_items)
+    mono_map = dict(mono_ativo_items)
+    direct_stocks = dict(direct_stock_items) if direct_stock_items else {}
+    etf_comps = _json.loads(etf_composition_json) if etf_composition_json else {}
+
+    # Todas as datas disponíveis (para replicar itens fixos em cada mês)
+    all_dates = sorted(df_posicoes["data"].unique())
+
+    records = []
+
+    # Parte 1: Fundos investidos (via CVM/XML)
+    for cnpj_raw, peso_pct in zip(portfolio_cnpjs, portfolio_pesos):
+        if not cnpj_raw:
+            continue
+        peso = peso_pct / 100.0
+
+        # Caso especial: fundo mono-ativo
+        if cnpj_raw in mono_map:
+            ticker_mono = mono_map[cnpj_raw]
+            setor_mono = classificar_setor(ticker_mono)
+            for dt in all_dates:
+                records.append({
+                    "data": dt,
+                    "ativo": ticker_mono,
+                    "setor": setor_mono,
+                    "exposicao_pct": peso * 100.0,
+                })
+            continue
+
+        cnpj_busca = foco_map.get(cnpj_raw, cnpj_raw)
+
+        df_fundo = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_busca]
+        if df_fundo.empty:
+            df_fundo = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_raw]
+        if df_fundo.empty:
+            continue
+
+        for dt, grp in df_fundo.groupby("data"):
+            for _, row in grp.iterrows():
+                records.append({
+                    "data": dt,
+                    "ativo": row["ativo"],
+                    "setor": row.get("setor", classificar_setor(row["ativo"])),
+                    "exposicao_pct": peso * (row.get("pct_pl", 0) or 0),
+                })
+
+    # Parte 2: Ações diretas (peso fixo em todos os meses)
+    for ticker_dir, peso_dir in direct_stocks.items():
+        # Se é ETF com composição disponível, explodir
+        if ticker_dir in etf_comps and etf_comps[ticker_dir]:
+            comp = etf_comps[ticker_dir]
+            for ticker_idx, peso_idx in comp.items():
+                exp = peso_dir * (peso_idx / 100.0)
+                setor_idx = classificar_setor(ticker_idx)
+                for dt in all_dates:
+                    records.append({
+                        "data": dt,
+                        "ativo": ticker_idx,
+                        "setor": setor_idx,
+                        "exposicao_pct": exp,
+                    })
+        else:
+            # Ação direta simples
+            setor_dir = classificar_setor(ticker_dir)
+            for dt in all_dates:
+                records.append({
+                    "data": dt,
+                    "ativo": ticker_dir,
+                    "setor": setor_dir,
+                    "exposicao_pct": peso_dir,
+                })
+
+    if not records:
+        return pd.DataFrame(columns=["data", "ativo", "setor", "exposicao_pct"])
+
+    df = pd.DataFrame(records)
+    # Agregar por (data, ativo) caso múltiplos fundos tenham a mesma ação
+    df = df.groupby(["data", "ativo", "setor"]).agg(
+        exposicao_pct=("exposicao_pct", "sum")
+    ).reset_index()
+    return df.sort_values("data")
+
+
+@st.cache_data(ttl=3600, show_spinner="Buscando dados fundamentalistas...")
+def _fetch_fundamentals_yfinance(tickers_sa: tuple) -> pd.DataFrame:
+    """Busca dados fundamentalistas do yfinance para uma lista de tickers .SA.
+    Retorna DataFrame wide (1 linha por ticker) com múltiplos e marketCap.
+    """
+    import yfinance as yf
+
+    _CAMPOS = [
+        "trailingPE", "forwardPE", "priceToBook", "dividendYield",
+        "returnOnEquity", "profitMargins", "beta", "marketCap",
+        "enterpriseValue", "ebitda",
+    ]
+    rows = []
+    # Processar em lotes de 20 para performance
+    tickers_list = list(tickers_sa)
+    for i in range(0, len(tickers_list), 20):
+        batch = tickers_list[i:i + 20]
+        try:
+            data = yf.Tickers(" ".join(batch))
+            for tk in batch:
+                try:
+                    info = data.tickers[tk].info
+                    row = {"ticker": tk}
+                    for campo in _CAMPOS:
+                        val = info.get(campo)
+                        if val is not None:
+                            row[campo] = float(val)
+                    if len(row) > 1:  # tem pelo menos 1 campo além do ticker
+                        rows.append(row)
+                except Exception:
+                    continue
+        except Exception:
+            continue
+
+    if not rows:
+        return pd.DataFrame()
+
+    df = pd.DataFrame(rows)
+    # dividendYield: yfinance JÁ retorna em % (12.39 = 12.39%) — NÃO converter
+    # returnOnEquity e profitMargins: yfinance retorna como decimal (0.05 = 5%) — converter
+    if "returnOnEquity" in df.columns:
+        df["returnOnEquity"] = df["returnOnEquity"] * 100
+    if "profitMargins" in df.columns:
+        df["profitMargins"] = df["profitMargins"] * 100
+
+    return df
+
+
+def _load_fundamentals_wide(tickers_carteira=None) -> pd.DataFrame:
+    """Carrega fundamentalistas: primeiro do parquet/DB local, depois complementa
+    via yfinance para tickers faltantes. Retorna DataFrame wide (1 linha por ticker).
+    """
+    # 1) Carregar dados já disponíveis (parquet ou SQLite local)
+    df_raw = carregar_fundamentals_explosao()
+    if not df_raw.empty:
+        df_local = df_raw.pivot(index="ticker", columns="indicador", values="valor").reset_index()
+        _str_cols = {"ticker", "sector", "industry", "longName", "currency"}
+        for col in df_local.columns:
+            if col not in _str_cols:
+                df_local[col] = pd.to_numeric(df_local[col], errors="coerce")
+    else:
+        df_local = pd.DataFrame(columns=["ticker"])
+
+    # 2) Se temos lista de tickers da carteira, buscar faltantes via yfinance
+    if tickers_carteira:
+        tickers_sa = [t + ".SA" if not t.endswith(".SA") else t for t in tickers_carteira]
+        tickers_existentes = set(df_local["ticker"].tolist()) if not df_local.empty else set()
+        tickers_faltantes = [t for t in tickers_sa if t not in tickers_existentes]
+
+        if tickers_faltantes:
+            df_yf = _fetch_fundamentals_yfinance(tuple(sorted(tickers_faltantes)))
+            if not df_yf.empty:
+                # yfinance já retorna DY/ROE/margins como % (convertido acima)
+                # DB local: DY já é %, ROE/margins são decimal → converter
+                if not df_local.empty:
+                    for col in ("returnOnEquity", "profitMargins"):
+                        if col in df_local.columns:
+                            df_local[col] = df_local[col] * 100
+                    # dividendYield do DB local JÁ é % — nada a fazer
+                df_local = pd.concat([df_local, df_yf], ignore_index=True)
+                # Remover duplicatas (preferir local)
+                df_local = df_local.drop_duplicates(subset=["ticker"], keep="first")
+
+    if df_local.empty:
+        return pd.DataFrame()
+
+    # Calcular EV/EBITDA se temos os dados
+    if "enterpriseValue" in df_local.columns and "ebitda" in df_local.columns:
+        df_local["ev_ebitda"] = df_local["enterpriseValue"] / df_local["ebitda"].replace(0, np.nan)
+
+    return df_local
+
+
 def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
     """Página Explosão: decomposição de fundos TAG em ações subjacentes via PDFs BTG."""
 
@@ -3036,13 +3304,17 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
         return
 
     # ── Carregar dados conforme modo ──
+    _parquet_acoes_diretas = os.path.join(_data_dir, "explosao_acoes_diretas.parquet")
+
     if _modo_cloud and not _modo_pdf:
         df_all_portfolios = pd.read_parquet(_parquet_portfolios)
         df_all_resumos = pd.read_parquet(_parquet_resumos) if os.path.exists(_parquet_resumos) else pd.DataFrame()
+        df_all_acoes_diretas = pd.read_parquet(_parquet_acoes_diretas) if os.path.exists(_parquet_acoes_diretas) else pd.DataFrame()
         datas_pdf = sorted(df_all_portfolios["data_pdf"].unique(), reverse=True)
     else:
         df_all_portfolios = None  # será lido sob demanda dos PDFs
         df_all_resumos = None
+        df_all_acoes_diretas = None
         datas_pdf = pdf_parser.listar_datas_disponiveis()
 
     if not datas_pdf or len(datas_pdf) == 0:
@@ -3102,10 +3374,11 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
     for nome_fundo_tag in fundos_sel_pdf:
         st.markdown(f"### 💥 {nome_fundo_tag}")
 
-        # Resumo e portfolio — PDF local ou parquet cloud
+        # Resumo, portfolio e ações diretas — PDF local ou parquet cloud
         if _modo_pdf:
             resumo = pdf_parser.extrair_resumo(data_sel, nome_fundo_tag)
             df_portfolio = pdf_parser.extrair_portfolio_investido(data_sel, nome_fundo_tag)
+            df_acoes_dir = pdf_parser.extrair_acoes_diretas(data_sel, nome_fundo_tag)
         else:
             # Ler do parquet
             mask = (df_all_portfolios["data_pdf"] == data_sel) & (df_all_portfolios["fundo_tag"] == nome_fundo_tag)
@@ -3116,34 +3389,53 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
                 resumo_rows = df_all_resumos[mask_r]
                 if len(resumo_rows) > 0:
                     resumo = resumo_rows.iloc[0].to_dict()
+            # Ações diretas do parquet
+            if df_all_acoes_diretas is not None and not df_all_acoes_diretas.empty:
+                mask_ad = (df_all_acoes_diretas["data_pdf"] == data_sel) & (df_all_acoes_diretas["fundo_tag"] == nome_fundo_tag)
+                df_acoes_dir = df_all_acoes_diretas[mask_ad].drop(columns=["data_pdf", "fundo_tag"], errors="ignore").copy()
+            else:
+                df_acoes_dir = pd.DataFrame()
 
-        if df_portfolio.empty:
-            st.warning(f"Não foi possível extrair o portfólio investido de {nome_fundo_tag}.")
+        if df_portfolio.empty and df_acoes_dir.empty:
+            st.warning(f"Nenhum dado disponível para {nome_fundo_tag}.")
             continue
 
         patrimonio = resumo.get("patrimonio", 0)
         n_fundos = len(df_portfolio)
-        total_pct = df_portfolio["pct_pl"].sum()
+        n_acoes_dir = len(df_acoes_dir) if not df_acoes_dir.empty else 0
+        total_pct_fundos = df_portfolio["pct_pl"].sum() if not df_portfolio.empty else 0
+        total_pct_acoes = df_acoes_dir["pct_pl"].sum() if not df_acoes_dir.empty else 0
+        total_pct = total_pct_fundos + total_pct_acoes
 
         # ── Cards de resumo ──
-        c1, c2, c3 = st.columns(3)
-        with c1:
+        _summary_cols = st.columns(4)
+        with _summary_cols[0]:
             st.markdown(metric_card(
                 "Patrimônio",
                 f"R$ {patrimonio:,.0f}" if patrimonio else "N/D"
             ), unsafe_allow_html=True)
-        with c2:
+        with _summary_cols[1]:
             st.markdown(metric_card("Fundos Investidos", str(n_fundos)), unsafe_allow_html=True)
-        with c3:
-            st.markdown(metric_card("% PL Investido", f"{total_pct:.1f}%"), unsafe_allow_html=True)
+        with _summary_cols[2]:
+            _lbl_acoes_dir = f"Ações Diretas"
+            st.markdown(metric_card(_lbl_acoes_dir, str(n_acoes_dir)), unsafe_allow_html=True)
+        with _summary_cols[3]:
+            st.markdown(metric_card("% PL Total", f"{total_pct:.1f}%"), unsafe_allow_html=True)
 
-        # ── Tabela Nível 1: Fundos investidos ──
-        st.markdown(f'<div class="tag-section-title">Fundos Investidos (PDF BTG)</div>', unsafe_allow_html=True)
+        # ── Tabela Nível 1: Fundos investidos + Ações diretas ──
+        _title_lv1 = "Composição do Portfólio (PDF BTG)"
+        if n_acoes_dir > 0:
+            _title_lv1 = "Fundos Investidos + Ações Diretas (PDF BTG)"
+        st.markdown(f'<div class="tag-section-title">{_title_lv1}</div>', unsafe_allow_html=True)
 
         # Normalizar CNPJs do PDF para cruzamento
-        df_portfolio["cnpj_norm"] = df_portfolio["cnpj"].apply(
-            lambda x: pdf_parser._normalizar_cnpj(str(x)) if x else ""
-        )
+        if not df_portfolio.empty:
+            df_portfolio["cnpj_norm"] = df_portfolio["cnpj"].apply(
+                lambda x: pdf_parser._normalizar_cnpj(str(x)) if x else ""
+            )
+        else:
+            df_portfolio = pd.DataFrame(columns=["cnpj", "nome_portfolio", "quantidade", "quota",
+                                                   "financeiro", "pct_pl", "ganho_diario", "cnpj_norm"])
 
         # Verificar quais fundos investidos temos dados XML/CVM
         cnpjs_investidos = set(df_portfolio["cnpj_norm"].unique()) - {""}
@@ -3176,36 +3468,84 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
             if dst in cnpjs_com_dados and src not in foco_to_direto:
                 foco_to_direto[src] = dst
 
+        # Mapeamento manual: fundos mono-ativo (100% em uma única ação)
+        # Quando o fundo não tem dados CVM/XML, sabemos exatamente o que compram
+        _MONO_ATIVO_MAP = {
+            "61455544000132": "BAUH4",   # FRASCATI FIA → 100% Excelsior Alimentos PN
+            "30366098000166": "SCAR3",   # REGILO FIA → 100% São Carlos ON
+        }
+
         df_portfolio["tem_dados"] = df_portfolio["cnpj_norm"].apply(
-            lambda cnpj: "✅" if (cnpj in cnpjs_com_dados or foco_to_direto.get(cnpj, cnpj) in cnpjs_com_dados) else ("⚠️" if cnpj == "" else "❌")
+            lambda cnpj: "✅" if (cnpj in cnpjs_com_dados or foco_to_direto.get(cnpj, cnpj) in cnpjs_com_dados or cnpj in _MONO_ATIVO_MAP) else ("⚠️" if cnpj == "" else "❌")
         )
 
-        # Tabela formatada
-        df_display = df_portfolio[["nome_portfolio", "cnpj", "pct_pl", "financeiro", "ganho_diario", "tem_dados"]].copy()
-        df_display.columns = ["Fundo", "CNPJ", "% PL", "Financeiro (R$)", "Ganho Diário (R$)", "Dados RV"]
-        df_display["Financeiro (R$)"] = df_display["Financeiro (R$)"].apply(lambda x: f"{x:,.2f}")
-        df_display["Ganho Diário (R$)"] = df_display["Ganho Diário (R$)"].apply(lambda x: f"{x:,.2f}")
-        df_display["% PL"] = df_display["% PL"].apply(lambda x: f"{x:.2f}%")
+        # Montar tabela unificada: fundos + ações diretas
+        _display_rows = []
+        for _, r in df_portfolio.iterrows():
+            _display_rows.append({
+                "Nome": r["nome_portfolio"],
+                "Tipo": "Fundo",
+                "CNPJ/Ticker": r["cnpj"] if r["cnpj"] else "-",
+                "% PL": r["pct_pl"],
+                "Financeiro (R$)": r["financeiro"],
+                "Ganho Diário (R$)": r["ganho_diario"],
+                "Dados RV": r["tem_dados"],
+            })
 
-        st.dataframe(
-            df_display,
-            use_container_width=True,
-            hide_index=True,
-            height=min(len(df_display) * 40 + 45, 400),
-        )
+        if not df_acoes_dir.empty:
+            for _, r in df_acoes_dir.iterrows():
+                _is_etf = r["ticker"] in _ETF_INDEX_MAP
+                _display_rows.append({
+                    "Nome": r["ticker"],
+                    "Tipo": "ETF" if _is_etf else "Ação",
+                    "CNPJ/Ticker": r["ticker"],
+                    "% PL": r["pct_pl"],
+                    "Financeiro (R$)": r["financeiro"],
+                    "Ganho Diário (R$)": r["ganho_diario"],
+                    "Dados RV": "🔄" if _is_etf else "📊",
+                })
 
-        # ── Explosão: Cruzar com dados XML/CVM ──
+        df_display = pd.DataFrame(_display_rows)
+        if not df_display.empty:
+            df_display["Financeiro (R$)"] = df_display["Financeiro (R$)"].apply(lambda x: f"{x:,.2f}")
+            df_display["Ganho Diário (R$)"] = df_display["Ganho Diário (R$)"].apply(lambda x: f"{x:,.2f}")
+            df_display["% PL"] = df_display["% PL"].apply(lambda x: f"{x:.2f}%")
+
+            st.dataframe(
+                df_display,
+                use_container_width=True,
+                hide_index=True,
+                height=min(len(df_display) * 40 + 45, 500),
+            )
+
+        # ── Explosão: Cruzar com dados XML/CVM + Ações Diretas + ETFs ──
         st.markdown(f'<div class="tag-section-title">Exposição a Ações (Explosão)</div>', unsafe_allow_html=True)
 
         exposicoes = []
         fundos_identificados = 0
+        _etfs_explodidos = {}  # cache de composição ETF
 
+        # Parte 1: Explodir fundos investidos (via CVM/XML)
         for _, row_pdf in df_portfolio.iterrows():
             cnpj_fundo_investido = row_pdf["cnpj_norm"]
             peso_fundo = row_pdf["pct_pl"] / 100.0  # peso no TAG
             nome_fundo_investido = row_pdf["nome_portfolio"]
 
             if not cnpj_fundo_investido:
+                continue
+
+            # Caso especial: fundos mono-ativo (100% em uma única ação)
+            if cnpj_fundo_investido in _MONO_ATIVO_MAP:
+                ticker_mono = _MONO_ATIVO_MAP[cnpj_fundo_investido]
+                fundos_identificados += 1
+                exposicoes.append({
+                    "ativo": ticker_mono,
+                    "setor": classificar_setor(ticker_mono),
+                    "fundo_origem": nome_fundo_investido,
+                    "peso_fundo_pct": row_pdf["pct_pl"],
+                    "peso_no_fundo_pct": 100.0,
+                    "exposicao_pct": peso_fundo * 100.0,
+                })
                 continue
 
             # Resolver mapeamento master/foco → direto
@@ -3243,25 +3583,76 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
                     "exposicao_pct": exposicao_ponderada,
                 })
 
+        # Parte 2: Ações diretas (da seção "Ações" do PDF)
+        if not df_acoes_dir.empty:
+            for _, row_acao in df_acoes_dir.iterrows():
+                ticker_dir = row_acao["ticker"]
+                peso_direto = row_acao["pct_pl"]  # já é % do PL total
+
+                # Verificar se é um ETF que pode ser explodido
+                if ticker_dir in _ETF_INDEX_MAP:
+                    # Buscar composição do ETF
+                    if ticker_dir not in _etfs_explodidos:
+                        _etfs_explodidos[ticker_dir] = _fetch_etf_composition(ticker_dir)
+
+                    etf_comp = _etfs_explodidos[ticker_dir]
+                    if etf_comp:
+                        # Explodir ETF: cada ação do índice recebe peso proporcional
+                        for ticker_idx, peso_idx in etf_comp.items():
+                            exposicao_etf = peso_direto * (peso_idx / 100.0)
+                            exposicoes.append({
+                                "ativo": ticker_idx,
+                                "setor": classificar_setor(ticker_idx),
+                                "fundo_origem": f"{ticker_dir} (ETF)",
+                                "peso_fundo_pct": peso_direto,
+                                "peso_no_fundo_pct": peso_idx,
+                                "exposicao_pct": exposicao_etf,
+                            })
+                        continue  # ETF explodido com sucesso
+
+                # Ação direta ou ETF sem dados → incluir como ativo direto
+                exposicoes.append({
+                    "ativo": ticker_dir,
+                    "setor": classificar_setor(ticker_dir),
+                    "fundo_origem": "Carteira Direta",
+                    "peso_fundo_pct": peso_direto,
+                    "peso_no_fundo_pct": 100.0,
+                    "exposicao_pct": peso_direto,
+                })
+
         if not exposicoes:
             st.info("Nenhuma ação identificada nos fundos investidos. Os dados XML/CVM podem não estar disponíveis para estes fundos.")
             continue
 
         df_exp = pd.DataFrame(exposicoes)
 
-        # Card: % identificado
-        pct_identificado = df_portfolio[df_portfolio["cnpj_norm"].apply(
-            lambda c: c in cnpjs_com_dados or foco_to_direto.get(c, c) in cnpjs_com_dados
-        )]["pct_pl"].sum()
+        # Card: % identificado (fundos com dados + ações diretas + ETFs explodidos)
+        pct_identificado_fundos = df_portfolio[df_portfolio["cnpj_norm"].apply(
+            lambda c: c in cnpjs_com_dados or foco_to_direto.get(c, c) in cnpjs_com_dados or c in _MONO_ATIVO_MAP
+        )]["pct_pl"].sum() if not df_portfolio.empty else 0
+        pct_identificado_direto = total_pct_acoes  # ações diretas são 100% identificadas
+        pct_identificado = pct_identificado_fundos + pct_identificado_direto
 
-        c4, c5, c6 = st.columns(3)
+        _etfs_info = ""
+        if _etfs_explodidos:
+            _n_etfs_ok = sum(1 for v in _etfs_explodidos.values() if v)
+            _etfs_info = f" | {_n_etfs_ok} ETF(s) explodido(s)"
+
+        c4, c5, c6, c7 = st.columns(4)
         with c4:
             st.markdown(metric_card("Fundos c/ Dados RV", f"{fundos_identificados}/{n_fundos}"), unsafe_allow_html=True)
         with c5:
-            st.markdown(metric_card("% PL Identificado", f"{pct_identificado:.1f}%"), unsafe_allow_html=True)
+            st.markdown(metric_card("Ações Diretas", f"{n_acoes_dir}"), unsafe_allow_html=True)
         with c6:
+            st.markdown(metric_card("% PL Identificado", f"{pct_identificado:.1f}%"), unsafe_allow_html=True)
+        with c7:
             n_acoes = df_exp["ativo"].nunique()
             st.markdown(metric_card("Ações Únicas", str(n_acoes)), unsafe_allow_html=True)
+
+        if _etfs_explodidos:
+            _etf_names = [f"{k} ({len(v)} ações)" for k, v in _etfs_explodidos.items() if v]
+            if _etf_names:
+                st.caption(f"🔄 ETFs explodidos em ações subjacentes: {', '.join(_etf_names)}")
 
         # ── Tabela consolidada por ativo ──
         df_consolidado = df_exp.groupby("ativo").agg(
@@ -3295,7 +3686,7 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
         fig_barras.update_layout(
             xaxis=dict(title="% do PL", ticksuffix="%"),
             yaxis=dict(tickfont=dict(size=10)),
-            margin=dict(l=120, r=60, t=50, b=40),
+            margin=dict(l=120, r=60, b=40),
         )
         st.plotly_chart(fig_barras, use_container_width=True)
 
@@ -3323,11 +3714,14 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
                 textfont=dict(size=12, color=TAG_OFFWHITE),
             ))
             fig_treemap.update_layout(
-                title=dict(text="Exposição por Setor", font=dict(size=14, color=TAG_LARANJA)),
+                title=dict(text="Exposição por Setor",
+                           font=dict(size=14, color=TAG_LARANJA, family="Tahoma, sans-serif"),
+                           y=0.98, yanchor="top"),
                 height=400,
-                margin=dict(l=10, r=10, t=50, b=10),
+                margin=dict(l=10, r=10, t=40, b=10),
                 paper_bgcolor="rgba(0,0,0,0)",
                 plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(family="Tahoma, sans-serif", color=TAG_OFFWHITE),
             )
             st.plotly_chart(fig_treemap, use_container_width=True)
 
@@ -3366,7 +3760,737 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
             st.dataframe(df_mat_display, use_container_width=True,
                          height=min(len(df_mat_display) * 40 + 45, 600))
 
+        # ══════════════════════════════════════════════════════════════════
+        # SEÇÃO A+B: Análise Histórica (Exposição Setorial e por Ativo)
+        # ══════════════════════════════════════════════════════════════════
+        st.markdown(f'<div class="tag-section-title">Análise Histórica</div>', unsafe_allow_html=True)
+
+        # Preparar dados para explosão histórica
+        _port_cnpjs = df_portfolio["cnpj_norm"].tolist() if not df_portfolio.empty else []
+        _port_pesos = df_portfolio["pct_pl"].tolist() if not df_portfolio.empty else []
+        _foco_items = list(foco_to_direto.items())
+
+        # Preparar ações diretas para histórico
+        _direct_stock_items = []
+        _etf_comp_items = []
+        if not df_acoes_dir.empty:
+            for _, r in df_acoes_dir.iterrows():
+                _direct_stock_items.append((r["ticker"], r["pct_pl"]))
+            # Incluir composições de ETFs já buscadas
+            for etf_tk, comp in _etfs_explodidos.items():
+                if comp:
+                    _etf_comp_items.append((etf_tk, comp))
+
+        # Filtrar posicoes apenas para CNPJs relevantes (performance)
+        _cnpjs_relevantes = set()
+        for c in _port_cnpjs:
+            if c:
+                _cnpjs_relevantes.add(c)
+                _cnpjs_relevantes.add(foco_to_direto.get(c, c))
+        df_pos_filtrado = df_posicoes[df_posicoes["cnpj_fundo"].isin(_cnpjs_relevantes)].copy()
+
+        df_hist = pd.DataFrame(columns=["data", "ativo", "setor", "exposicao_pct"])
+        _has_pos_data = not df_pos_filtrado.empty
+        _has_direct = len(_direct_stock_items) > 0
+
+        if _has_pos_data or _has_direct:
+            # Serializar para cache (st.cache_data precisa de tipos hashable)
+            import io as _io
+            _buf = _io.BytesIO()
+            if _has_pos_data:
+                df_pos_filtrado.to_parquet(_buf, index=False)
+            else:
+                # Se só temos ações diretas, precisamos de um parquet mínimo para as datas
+                # Usar df_posicoes completo para obter datas (pegar um subset pequeno)
+                _dates_sample = df_posicoes.head(1) if not df_posicoes.empty else pd.DataFrame()
+                if not _dates_sample.empty:
+                    df_pos_filtrado = df_posicoes.drop_duplicates(subset=["data"])[["data", "cnpj_fundo", "ativo", "pct_pl", "setor"]].head(100)
+                    df_pos_filtrado.to_parquet(_buf, index=False)
+                else:
+                    _buf = None
+
+            if _buf is not None:
+                _pos_bytes = _buf.getvalue()
+
+                # Serializar ETF compositions como JSON (dicts não são hashable para cache)
+                import json as _json
+                _etf_comp_json = _json.dumps(dict(_etf_comp_items)) if _etf_comp_items else None
+
+                df_hist = _compute_historical_explosion(
+                    _portfolio_key=f"{nome_fundo_tag}_{data_sel}_v2",
+                    portfolio_cnpjs=_port_cnpjs,
+                    portfolio_pesos=_port_pesos,
+                    foco_map_items=_foco_items,
+                    mono_ativo_items=list(_MONO_ATIVO_MAP.items()),
+                    df_posicoes_serialized=_pos_bytes,
+                    direct_stock_items=_direct_stock_items,
+                    etf_composition_json=_etf_comp_json,
+                )
+
+            if not df_hist.empty and len(df_hist["data"].unique()) >= 2:
+                # Calcular cobertura total (% PL explodido por mês)
+                _total_pct_by_date = df_hist.groupby("data")["exposicao_pct"].sum()
+                _avg_coverage = _total_pct_by_date.mean()
+                st.caption(
+                    f"⚠️ Exposição ponderada: cada ação = peso do sub-fundo × peso da ação no sub-fundo. "
+                    f"Cobertura média: **{_avg_coverage:.1f}%** do PL (fundos sem dados RV não aparecem)."
+                )
+
+                # A) Exposição Setorial Histórica — Stacked Area
+                df_hist_setor = df_hist.groupby(["data", "setor"])["exposicao_pct"].sum().reset_index()
+                pivot_setor = df_hist_setor.pivot_table(
+                    index="data", columns="setor", values="exposicao_pct", aggfunc="sum"
+                ).fillna(0)
+
+                fig_hist_setor = grafico_stacked_area(
+                    pivot_setor,
+                    f"Exposição Setorial Histórica — {nome_fundo_tag}",
+                    top_n=12,
+                )
+                st.plotly_chart(fig_hist_setor, use_container_width=True)
+
+                # B) Evolução Top Ações — Stacked Area + Linhas
+                df_hist_ativo = df_hist.groupby(["data", "ativo"])["exposicao_pct"].sum().reset_index()
+                pivot_ativo = df_hist_ativo.pivot_table(
+                    index="data", columns="ativo", values="exposicao_pct", aggfunc="sum"
+                ).fillna(0)
+
+                col_area, col_line = st.columns(2)
+                with col_area:
+                    fig_hist_ativo = grafico_stacked_area(
+                        pivot_ativo,
+                        f"Top Ações (Área) — {nome_fundo_tag}",
+                        top_n=12,
+                    )
+                    st.plotly_chart(fig_hist_ativo, use_container_width=True)
+
+                with col_line:
+                    fig_hist_linhas = grafico_linhas(
+                        pivot_ativo,
+                        f"Top Ações (Linhas) — {nome_fundo_tag}",
+                        top_n=10,
+                    )
+                    st.plotly_chart(fig_hist_linhas, use_container_width=True)
+            else:
+                st.info("Dados históricos insuficientes para gerar gráficos de evolução. "
+                        "É necessário pelo menos 2 meses de dados CVM/XML para os fundos subjacentes.")
+
+        # ══════════════════════════════════════════════════════════════════
+        # SEÇÃO C: Múltiplos Ponderados do Portfólio
+        # ══════════════════════════════════════════════════════════════════
+        st.markdown(f'<div class="tag-section-title">Múltiplos do Portfólio</div>', unsafe_allow_html=True)
+
+        # Passar tickers da explosão para buscar fundamentais de TODAS as ações
+        _tickers_explosao = df_consolidado["ativo"].unique().tolist() if not df_consolidado.empty else None
+        df_fund_wide = _load_fundamentals_wide(tickers_carteira=_tickers_explosao)
+
+        if not df_fund_wide.empty and not df_consolidado.empty:
+            # Mapear: carteira_rv usa "VALE3", yahoo usa "VALE3.SA"
+            df_cons_fund = df_consolidado.copy()
+            df_cons_fund["ticker_sa"] = df_cons_fund["ativo"] + ".SA"
+
+            df_merged = df_cons_fund.merge(
+                df_fund_wide, left_on="ticker_sa", right_on="ticker", how="inner"
+            )
+
+            total_exposicao = df_consolidado["exposicao_pct"].sum()
+            cobertura_exposicao = df_merged["exposicao_pct"].sum()
+            cobertura_pct = (cobertura_exposicao / total_exposicao * 100) if total_exposicao > 0 else 0
+
+            # Definir múltiplos a calcular
+            MULTIPLOS_CONFIG = [
+                ("trailingPE", "P/L", "x", 1),
+                ("forwardPE", "P/L Forward", "x", 1),
+                ("priceToBook", "P/VP", "x", 2),
+                ("ev_ebitda", "EV/EBITDA", "x", 1),
+                ("dividendYield", "Div. Yield", "%", 2),
+                ("returnOnEquity", "ROE", "%", 1),
+                ("beta", "Beta", "", 2),
+                ("profitMargins", "Margem Líq.", "%", 1),
+            ]
+
+            weighted_multiples = {}
+            for col_name, label, suffix, decimals in MULTIPLOS_CONFIG:
+                if col_name not in df_merged.columns:
+                    continue
+                valid = df_merged[df_merged[col_name].notna() & (df_merged[col_name] != 0)].copy()
+                if valid.empty:
+                    continue
+                w = valid["exposicao_pct"] / valid["exposicao_pct"].sum()
+                val = (valid[col_name] * w).sum()
+                # _load_fundamentals_wide já retorna DY/ROE/margins em %
+                weighted_multiples[col_name] = (label, val, suffix, decimals)
+
+            # Cards de múltiplos — 2 linhas de 4
+            if weighted_multiples:
+                items = list(weighted_multiples.values())
+                row1 = items[:4]
+                row2 = items[4:8]
+
+                # Card de cobertura primeiro
+                st.markdown(f"""<div style="
+                    background: linear-gradient(135deg, {TAG_BG_CARD} 0%, {TAG_BG_CARD_ALT} 100%);
+                    border: 1px solid {BORDER_COLOR}; border-radius: 8px;
+                    padding: 10px 16px; margin-bottom: 12px; text-align: center;
+                    font-size: 13px; color: {TEXT_MUTED};">
+                    📊 Cobertura Fundamentalista: <b style="color: {TAG_LARANJA};">{cobertura_pct:.1f}%</b> do PL
+                    &nbsp;|&nbsp; {len(df_merged)} de {len(df_consolidado)} ações com dados
+                </div>""", unsafe_allow_html=True)
+
+                cols1 = st.columns(len(row1))
+                for i, (label, val, suffix, decimals) in enumerate(row1):
+                    fmt = f"{val:.{decimals}f}{suffix}"
+                    with cols1[i]:
+                        st.markdown(metric_card(label, fmt), unsafe_allow_html=True)
+
+                if row2:
+                    cols2 = st.columns(len(row2))
+                    for i, (label, val, suffix, decimals) in enumerate(row2):
+                        fmt = f"{val:.{decimals}f}{suffix}"
+                        with cols2[i]:
+                            st.markdown(metric_card(label, fmt), unsafe_allow_html=True)
+
+                # Tabela expandível com detalhes por ação
+                with st.expander(f"📊 Detalhe por Ação — Múltiplos ({len(df_merged)} ações)", expanded=False):
+                    df_mult_detail = df_merged[["ativo", "exposicao_pct", "setor"]].copy()
+                    for col_name, label, suffix, decimals in MULTIPLOS_CONFIG:
+                        if col_name in df_merged.columns:
+                            vals = df_merged[col_name].copy()
+                            # DY/ROE/margins já em % via _load_fundamentals_wide
+                            df_mult_detail[label] = vals.apply(
+                                lambda x: f"{x:.{decimals}f}{suffix}" if pd.notna(x) and x != 0 else "-"
+                            )
+                    df_mult_detail["exposicao_pct"] = df_mult_detail["exposicao_pct"].apply(lambda x: f"{x:.2f}%")
+                    df_mult_detail.columns = [c if c not in ("ativo", "exposicao_pct", "setor")
+                                              else {"ativo": "Ativo", "exposicao_pct": "Peso (%PL)", "setor": "Setor"}[c]
+                                              for c in df_mult_detail.columns]
+                    st.dataframe(df_mult_detail, use_container_width=True, hide_index=True,
+                                 height=min(len(df_mult_detail) * 40 + 45, 500))
+            else:
+                st.info("Nenhum dado fundamentalista disponível para as ações deste portfólio.")
+        else:
+            st.info("Dados fundamentalistas não disponíveis. Execute `python export_data.py` para exportar.")
+
+        # ══════════════════════════════════════════════════════════════════
+        # SEÇÃO D: Concentração e Diversificação
+        # ══════════════════════════════════════════════════════════════════
+        st.markdown(f'<div class="tag-section-title">Concentração e Diversificação</div>', unsafe_allow_html=True)
+
+        if not df_consolidado.empty:
+            weights = df_consolidado["exposicao_pct"].dropna()
+            weights = weights[weights > 0]
+
+            if not weights.empty:
+                w_norm = weights / weights.sum()
+                hhi = (w_norm ** 2).sum() * 10000
+                n_efetivo = 1 / (w_norm ** 2).sum() if (w_norm ** 2).sum() > 0 else 0
+                top1_pct = weights.max()
+                top5_pct = weights.nlargest(5).sum()
+                top10_pct = weights.nlargest(10).sum()
+                n_total = len(weights)
+                n_setores = df_consolidado["setor"].nunique()
+
+                # Classificação HHI
+                if hhi < 450:
+                    hhi_class = "Diversificado"
+                    hhi_color = "#6BDE97"
+                elif hhi < 700:
+                    hhi_class = "Moderado"
+                    hhi_color = "#FFBB00"
+                elif hhi < 1200:
+                    hhi_class = "Concentrado"
+                    hhi_color = "#FF8853"
+                else:
+                    hhi_class = "Muito Concentrado"
+                    hhi_color = "#ED5A6E"
+
+                # Cards de concentração
+                c_hhi, c_top5, c_top10, c_nef = st.columns(4)
+                with c_hhi:
+                    st.markdown(f"""<div style="
+                        background: {TAG_BG_CARD}; border: 1px solid {BORDER_COLOR};
+                        border-radius: 8px; padding: 14px 16px; text-align: center;
+                        border-left: 3px solid {hhi_color};">
+                        <div style="font-size: 11px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px;">HHI</div>
+                        <div style="font-size: 22px; font-weight: 700; color: {hhi_color}; margin: 4px 0;">{hhi:.0f}</div>
+                        <div style="font-size: 11px; color: {hhi_color};">{hhi_class}</div>
+                    </div>""", unsafe_allow_html=True)
+                with c_top5:
+                    st.markdown(metric_card("Top 5 Ações", f"{top5_pct:.1f}%"), unsafe_allow_html=True)
+                with c_top10:
+                    st.markdown(metric_card("Top 10 Ações", f"{top10_pct:.1f}%"), unsafe_allow_html=True)
+                with c_nef:
+                    st.markdown(metric_card("N° Efetivo", f"{n_efetivo:.1f}"), unsafe_allow_html=True)
+
+                c_n, c_set, c_top1 = st.columns(3)
+                with c_n:
+                    st.markdown(metric_card("Total de Ações", str(n_total)), unsafe_allow_html=True)
+                with c_set:
+                    st.markdown(metric_card("Setores", str(n_setores)), unsafe_allow_html=True)
+                with c_top1:
+                    top1_nome = df_consolidado.iloc[0]["ativo"] if len(df_consolidado) > 0 else "N/D"
+                    st.markdown(metric_card("Maior Posição", f"{top1_nome} ({top1_pct:.1f}%)"), unsafe_allow_html=True)
+
+                # ── Gráfico HHI Histórico com faixas coloridas ──
+                # Usar dados de _compute_historical_explosion se disponíveis
+                if not df_hist.empty and len(df_hist["data"].unique()) >= 2:
+                    _datas_hhi_exp = sorted(df_hist["data"].unique())
+                    _hhi_vals_exp = []
+                    _hhi_dates_exp = []
+                    _n_ativos_exp = []
+                    _top1_exp = []
+
+                    for _dt in _datas_hhi_exp:
+                        _snap = df_hist[df_hist["data"] == _dt]
+                        _w_snap = _snap.groupby("ativo")["exposicao_pct"].sum()
+                        _w_snap = _w_snap[_w_snap > 0]
+                        if len(_w_snap) > 0:
+                            _w_n = _w_snap / _w_snap.sum()
+                            _hhi_v = (_w_n ** 2).sum() * 10000
+                            _hhi_vals_exp.append(_hhi_v)
+                            _hhi_dates_exp.append(_dt)
+                            _n_ativos_exp.append(len(_w_snap))
+                            _top1_exp.append(_w_snap.max())
+
+                    if len(_hhi_vals_exp) >= 2:
+                        fig_hhi_exp = go.Figure()
+
+                        fig_hhi_exp.add_trace(go.Scatter(
+                            x=_hhi_dates_exp, y=_hhi_vals_exp,
+                            mode="lines+markers",
+                            name="HHI",
+                            line=dict(width=2.5, color=TAG_CHART_COLORS[4]),
+                            marker=dict(size=5, color=TAG_CHART_COLORS[4]),
+                            hovertemplate="<b>HHI</b><br>%{x|%b/%Y}: %{y:.0f}<br>N ativos: %{customdata[0]}<br>Top1: %{customdata[1]:.1f}%<extra></extra>",
+                            customdata=list(zip(_n_ativos_exp, _top1_exp)),
+                        ))
+
+                        # Faixas coloridas de fundo
+                        _max_hhi = max(max(_hhi_vals_exp) * 1.15, 800)
+                        _faixas_exp = [
+                            (0, 450, "rgba(107,222,151,0.06)", "#6BDE97", "Diversificado"),
+                            (450, 700, "rgba(255,187,0,0.06)", "#FFBB00", "Moderado"),
+                            (700, 1200, "rgba(255,136,83,0.06)", "#FF8853", "Concentrado"),
+                            (1200, max(_max_hhi, 1500), "rgba(237,90,110,0.06)", "#ED5A6E", "Muito concentrado"),
+                        ]
+                        for _y0, _y1, _fill, _lc, _lbl in _faixas_exp:
+                            fig_hhi_exp.add_hrect(y0=_y0, y1=_y1, fillcolor=_fill, line_width=0)
+
+                        for _yval, _lc, _lbl in [(450, "#6BDE97", "Diversificado"), (700, "#FFBB00", "Moderado"), (1200, "#ED5A6E", "Concentrado")]:
+                            fig_hhi_exp.add_hline(
+                                y=_yval, line_dash="dot", line_color=_lc, line_width=1,
+                                annotation_text=f"{_lbl} ({_yval})", annotation_position="bottom right",
+                                annotation_font_color=_lc, annotation_font_size=9,
+                            )
+
+                        _chart_layout(fig_hhi_exp, f"{nome_fundo_tag} — Índice HHI de Concentração",
+                                      height=380, y_title="HHI", y_suffix="")
+                        fig_hhi_exp.update_yaxes(range=[0, _max_hhi])
+                        st.plotly_chart(fig_hhi_exp, use_container_width=True)
+
+                # ── Concentração Top 1 e Top 5 Histórica ──
+                if not df_hist.empty and len(df_hist["data"].unique()) >= 2:
+                    _datas_conc = sorted(df_hist["data"].unique())
+                    _top1_hist_pcts = []
+                    _top5_hist_pcts = []
+                    _top1_hist_nomes = []
+                    _conc_dates = []
+                    for _dt in _datas_conc:
+                        _snap = df_hist[df_hist["data"] == _dt]
+                        _by_ativo = _snap.groupby("ativo")["exposicao_pct"].sum().sort_values(ascending=False)
+                        if len(_by_ativo) > 0:
+                            _conc_dates.append(_dt)
+                            _top1_hist_pcts.append(_by_ativo.iloc[0])
+                            _top1_hist_nomes.append(_by_ativo.index[0])
+                            _top5_hist_pcts.append(_by_ativo.head(5).sum())
+
+                    if len(_conc_dates) >= 2:
+                        fig_conc = go.Figure()
+                        fig_conc.add_trace(go.Scatter(
+                            x=_conc_dates, y=_top5_hist_pcts,
+                            name="Top 5 (soma)",
+                            mode="lines",
+                            line=dict(width=1, color=TAG_LARANJA),
+                            fill="tozeroy",
+                            fillcolor=_hex_to_rgba(TAG_LARANJA, 0.15),
+                            hovertemplate="<b>%{x|%b/%Y}</b><br>Top 5: %{y:.1f}%<extra></extra>",
+                        ))
+                        fig_conc.add_trace(go.Scatter(
+                            x=_conc_dates, y=_top1_hist_pcts,
+                            name="Maior posição",
+                            mode="lines+markers",
+                            line=dict(width=2.5, color=TAG_VERMELHO),
+                            marker=dict(size=5, color=TAG_VERMELHO),
+                            customdata=_top1_hist_nomes,
+                            hovertemplate="<b>%{x|%b/%Y}</b><br>%{customdata}: %{y:.1f}%<extra></extra>",
+                        ))
+                        _chart_layout(fig_conc, f"{nome_fundo_tag} — Concentração (Top 1 e Top 5)",
+                                      height=380, y_title="% do PL")
+                        st.plotly_chart(fig_conc, use_container_width=True)
+
+                # ── Market Cap Breakdown ──
+                if not df_fund_wide.empty and not df_consolidado.empty:
+                    df_cap = df_consolidado.copy()
+                    df_cap["ticker_sa"] = df_cap["ativo"] + ".SA"
+                    df_cap = df_cap.merge(
+                        df_fund_wide[["ticker", "marketCap"]],
+                        left_on="ticker_sa", right_on="ticker", how="left"
+                    )
+
+                    def _classify_cap(mcap):
+                        if pd.isna(mcap) or mcap is None or mcap == 0:
+                            return "Sem Dados"
+                        if mcap >= 40e9:
+                            return "Large Cap"
+                        if mcap >= 10e9:
+                            return "Mid Cap"
+                        return "Small Cap"
+
+                    df_cap["cap_class"] = df_cap["marketCap"].apply(_classify_cap)
+                    cap_breakdown = df_cap.groupby("cap_class")["exposicao_pct"].sum().reset_index()
+                    cap_breakdown = cap_breakdown.sort_values("exposicao_pct", ascending=True)
+
+                    cap_colors = {
+                        "Large Cap": "#5C85F7",
+                        "Mid Cap": "#6BDE97",
+                        "Small Cap": "#FFBB00",
+                        "Sem Dados": "#6A6864",
+                    }
+
+                    col_cap_chart, col_cap_table = st.columns([3, 2])
+                    with col_cap_chart:
+                        fig_cap = go.Figure()
+                        fig_cap.add_trace(go.Bar(
+                            y=cap_breakdown["cap_class"],
+                            x=cap_breakdown["exposicao_pct"],
+                            orientation="h",
+                            marker=dict(
+                                color=[cap_colors.get(c, TAG_CINZA_MEDIO) for c in cap_breakdown["cap_class"]],
+                                line=dict(width=0),
+                            ),
+                            text=[f"{v:.1f}%" for v in cap_breakdown["exposicao_pct"]],
+                            textposition="outside",
+                            textfont=dict(size=11, color=TAG_OFFWHITE),
+                            hovertemplate="%{y}: %{x:.2f}% do PL<extra></extra>",
+                        ))
+                        _chart_layout(fig_cap, "Market Cap Breakdown",
+                                      height=250, y_title="", y_suffix="%", legend_h=False)
+                        fig_cap.update_layout(
+                            xaxis=dict(title="% do PL", ticksuffix="%"),
+                            margin=dict(l=100, r=60, b=30),
+                        )
+                        st.plotly_chart(fig_cap, use_container_width=True)
+
+                    with col_cap_table:
+                        cap_display = cap_breakdown.sort_values("exposicao_pct", ascending=False).copy()
+                        cap_display["exposicao_pct"] = cap_display["exposicao_pct"].apply(lambda x: f"{x:.2f}%")
+                        cap_display.columns = ["Classificação", "Exposição (% PL)"]
+                        st.dataframe(cap_display, use_container_width=True, hide_index=True)
+
+        # ══════════════════════════════════════════════════════════════════
+        # SEÇÃO E: Sobreposição entre Sub-Fundos DENTRO do Portfólio
+        # ══════════════════════════════════════════════════════════════════
+        st.markdown(f'<div class="tag-section-title">Sobreposição entre Sub-Fundos</div>', unsafe_allow_html=True)
+        st.caption("Overlap entre os fundos investidos que compõem este portfólio TAG. "
+                   "Para cada par, calcula-se a soma do min(% PL) dos ativos em comum.")
+
+        # Computar carteira de cada sub-fundo
+        subfund_carts = {}
+        for _, row_sub in df_portfolio.iterrows():
+            cnpj_sub = row_sub["cnpj_norm"]
+            nome_sub = row_sub["nome_portfolio"]
+            if not cnpj_sub:
+                continue
+
+            # Mono-ativo
+            if cnpj_sub in _MONO_ATIVO_MAP:
+                subfund_carts[nome_sub] = {_MONO_ATIVO_MAP[cnpj_sub]: 100.0}
+                continue
+
+            cnpj_busca_sub = foco_to_direto.get(cnpj_sub, cnpj_sub)
+            df_sub_pos = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_busca_sub]
+            if df_sub_pos.empty:
+                df_sub_pos = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_sub]
+            if df_sub_pos.empty:
+                continue
+
+            dt_max_sub = df_sub_pos["data"].max()
+            snap_sub = df_sub_pos[df_sub_pos["data"] == dt_max_sub]
+            cart_sub = dict(zip(snap_sub["ativo"], snap_sub["pct_pl"]))
+            if cart_sub:
+                subfund_carts[nome_sub] = cart_sub
+
+        if len(subfund_carts) >= 2:
+            sf_names = list(subfund_carts.keys())
+            n_sf = len(sf_names)
+
+            # Nomes curtos para heatmap
+            sf_labels = []
+            for nm in sf_names:
+                parts = nm.split()
+                short = " ".join(parts[:2]) if len(parts) > 2 else nm
+                if len(short) > 20:
+                    short = short[:17] + "..."
+                sf_labels.append(short)
+
+            # Heatmap: sobreposição por ativo entre sub-fundos
+            overlap_matrix = np.full((n_sf, n_sf), np.nan)
+            for i in range(n_sf):
+                for j in range(n_sf):
+                    if i != j:
+                        overlap_matrix[i][j] = _calcular_sobreposicao_ativos(
+                            subfund_carts[sf_names[i]], subfund_carts[sf_names[j]]
+                        )
+
+            text_matrix = []
+            for i in range(n_sf):
+                row_txt = []
+                for j in range(n_sf):
+                    if i == j:
+                        n_at = len(subfund_carts[sf_names[i]])
+                        row_txt.append(f"{n_at} ativos")
+                    else:
+                        row_txt.append(f"{overlap_matrix[i][j]:.1f}%")
+                text_matrix.append(row_txt)
+
+            fig_heat_sub = go.Figure(data=go.Heatmap(
+                z=overlap_matrix,
+                x=sf_labels,
+                y=sf_labels,
+                text=text_matrix,
+                texttemplate="%{text}",
+                textfont=dict(size=10, color=TEXT_COLOR),
+                colorscale=[
+                    [0, TAG_BG_CARD], [0.25, "#2A3060"],
+                    [0.5, "#3f51b5"], [0.75, "#5C85F7"],
+                    [1, "#58C6F5"]
+                ],
+                hovertemplate="<b>%{y}</b> x <b>%{x}</b><br>Sobreposição: %{text}<extra></extra>",
+                showscale=True,
+                colorbar=dict(title="% PL", ticksuffix="%", tickfont=dict(color=TEXT_MUTED)),
+            ))
+            fig_heat_sub.update_layout(
+                height=max(400, 65 * n_sf + 140),
+                template="plotly_dark",
+                xaxis=dict(tickangle=45, side="bottom", tickfont=dict(color=TEXT_MUTED, size=9)),
+                yaxis=dict(autorange="reversed", tickfont=dict(color=TEXT_MUTED, size=9)),
+                font=dict(family="Tahoma, sans-serif", size=11, color=TEXT_COLOR),
+                margin=dict(l=10, r=10, t=20, b=140),
+                plot_bgcolor="rgba(0,0,0,0)", paper_bgcolor="rgba(0,0,0,0)",
+            )
+            st.plotly_chart(fig_heat_sub, use_container_width=True)
+
+            # Tabela pairwise com overlap
+            overlap_pairs = []
+            for i in range(n_sf):
+                for j in range(i + 1, n_sf):
+                    ovl = _calcular_sobreposicao_ativos(subfund_carts[sf_names[i]], subfund_carts[sf_names[j]])
+                    common = set(subfund_carts[sf_names[i]].keys()) & set(subfund_carts[sf_names[j]].keys())
+                    overlap_pairs.append({
+                        "Fundo A": sf_labels[i],
+                        "Fundo B": sf_labels[j],
+                        "Sobreposição (%)": f"{ovl:.1f}%",
+                        "Ativos Comuns": len(common),
+                    })
+
+            if overlap_pairs:
+                df_ovl_pairs = pd.DataFrame(overlap_pairs).sort_values("Ativos Comuns", ascending=False)
+                with st.expander(f"📋 Tabela de Sobreposição — {len(overlap_pairs)} pares", expanded=False):
+                    st.dataframe(df_ovl_pairs, use_container_width=True, hide_index=True)
+
+            # ── Gráfico Histórico de Sobreposição entre Sub-Fundos ──
+            st.caption("Evolução da sobreposição (soma min % PL dos ativos em comum) ao longo do tempo "
+                       "para cada par de sub-fundos.")
+
+            # Para cada par de sub-fundos, calcular overlap em cada data histórica
+            # Precisamos dos CNPJs para buscar posições históricas
+            _subfund_cnpjs = {}
+            for _, row_sub in df_portfolio.iterrows():
+                cnpj_sub = row_sub["cnpj_norm"]
+                nome_sub = row_sub["nome_portfolio"]
+                if cnpj_sub and nome_sub in subfund_carts:
+                    cnpj_busca_sub = foco_to_direto.get(cnpj_sub, cnpj_sub)
+                    _subfund_cnpjs[nome_sub] = cnpj_busca_sub
+
+            # Selecionar top pares por overlap para graficar (máx 10 linhas)
+            if overlap_pairs:
+                _pares_top = sorted(overlap_pairs, key=lambda x: float(x["Sobreposição (%)"].replace("%", "")),
+                                    reverse=True)[:10]
+                _name_to_idx = {sf_labels[i]: i for i in range(n_sf)}
+
+                fig_hist_ovl = go.Figure()
+                _color_idx = 0
+
+                for par in _pares_top:
+                    nome_a_short = par["Fundo A"]
+                    nome_b_short = par["Fundo B"]
+                    idx_a = _name_to_idx.get(nome_a_short)
+                    idx_b = _name_to_idx.get(nome_b_short)
+                    if idx_a is None or idx_b is None:
+                        continue
+
+                    nome_a_full = sf_names[idx_a]
+                    nome_b_full = sf_names[idx_b]
+                    cnpj_a = _subfund_cnpjs.get(nome_a_full)
+                    cnpj_b = _subfund_cnpjs.get(nome_b_full)
+                    if not cnpj_a or not cnpj_b:
+                        continue
+
+                    # Mono-ativo: não tem histórico de posições
+                    if nome_a_full not in _subfund_cnpjs or nome_b_full not in _subfund_cnpjs:
+                        continue
+
+                    df_a = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_a]
+                    df_b = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_b]
+                    if df_a.empty or df_b.empty:
+                        continue
+
+                    common_dates = sorted(set(df_a["data"].unique()) & set(df_b["data"].unique()))
+                    if len(common_dates) < 2:
+                        continue
+
+                    overlap_series = []
+                    for dt in common_dates:
+                        cart_a = dict(zip(df_a[df_a["data"] == dt]["ativo"], df_a[df_a["data"] == dt]["pct_pl"]))
+                        cart_b = dict(zip(df_b[df_b["data"] == dt]["ativo"], df_b[df_b["data"] == dt]["pct_pl"]))
+                        overlap_series.append(_calcular_sobreposicao_ativos(cart_a, cart_b))
+
+                    pair_label = f"{nome_a_short} x {nome_b_short}"
+                    fig_hist_ovl.add_trace(go.Scatter(
+                        x=common_dates, y=overlap_series,
+                        mode="lines+markers", name=pair_label,
+                        line=dict(width=2.5, color=TAG_CHART_COLORS[_color_idx % len(TAG_CHART_COLORS)]),
+                        marker=dict(size=4),
+                        hovertemplate=f"<b>{pair_label}</b><br>%{{x|%b/%Y}}: %{{y:.1f}}%<extra></extra>",
+                    ))
+                    _color_idx += 1
+
+                if fig_hist_ovl.data:
+                    _chart_layout(fig_hist_ovl, f"Sobreposição Histórica — Sub-Fundos de {nome_fundo_tag}",
+                                  y_title="% PL Sobreposto")
+                    st.plotly_chart(fig_hist_ovl, use_container_width=True)
+                else:
+                    st.info("Dados históricos insuficientes para gráfico de sobreposição entre sub-fundos.")
+
+            # Ações em comum entre todos os sub-fundos
+            all_sf_tickers = {nm: set(cart.keys()) for nm, cart in subfund_carts.items()}
+            common_all_sf = set.intersection(*all_sf_tickers.values()) if all_sf_tickers else set()
+            if common_all_sf:
+                st.markdown(f"""<div style="
+                    background: {TAG_BG_CARD}; border: 1px solid {BORDER_COLOR};
+                    border-radius: 8px; padding: 12px 16px; margin-top: 8px;
+                    font-size: 13px; color: {TEXT_MUTED};">
+                    🔗 <b style="color: {TAG_LARANJA};">{len(common_all_sf)}</b> ações em comum entre todos os sub-fundos:
+                    <span style="color: {TAG_OFFWHITE};">{', '.join(sorted(common_all_sf)[:20])}</span>
+                    {'...' if len(common_all_sf) > 20 else ''}
+                </div>""", unsafe_allow_html=True)
+
+        else:
+            st.info("Dados insuficientes para calcular sobreposição entre sub-fundos (necessário ≥ 2 fundos com dados RV).")
+
         st.markdown("---")
+
+    # ══════════════════════════════════════════════════════════════════
+    # SEÇÃO E2: Overlap entre Fundos TAG (fora do loop, quando múltiplos)
+    # ══════════════════════════════════════════════════════════════════
+    if len(fundos_sel_pdf) > 1:
+        st.markdown(f'<div class="tag-section-title">Sobreposição entre Fundos TAG</div>', unsafe_allow_html=True)
+        st.caption("Overlap entre os diferentes fundos TAG selecionados (nível explodido em ações).")
+
+        # Recomputar explosões para cada fundo TAG (incluindo ações diretas e ETFs)
+        fund_explosions = {}
+        for nome_fundo_tag_ovl in fundos_sel_pdf:
+            if _modo_pdf:
+                df_port_ovl = pdf_parser.extrair_portfolio_investido(data_sel, nome_fundo_tag_ovl)
+                df_ad_ovl = pdf_parser.extrair_acoes_diretas(data_sel, nome_fundo_tag_ovl)
+            else:
+                mask_ovl = (df_all_portfolios["data_pdf"] == data_sel) & (df_all_portfolios["fundo_tag"] == nome_fundo_tag_ovl)
+                df_port_ovl = df_all_portfolios[mask_ovl].drop(columns=["data_pdf", "fundo_tag"], errors="ignore").copy()
+                if df_all_acoes_diretas is not None and not df_all_acoes_diretas.empty:
+                    mask_ad_ovl = (df_all_acoes_diretas["data_pdf"] == data_sel) & (df_all_acoes_diretas["fundo_tag"] == nome_fundo_tag_ovl)
+                    df_ad_ovl = df_all_acoes_diretas[mask_ad_ovl].drop(columns=["data_pdf", "fundo_tag"], errors="ignore").copy()
+                else:
+                    df_ad_ovl = pd.DataFrame()
+
+            if df_port_ovl.empty and df_ad_ovl.empty:
+                continue
+
+            if not df_port_ovl.empty:
+                df_port_ovl["cnpj_norm"] = df_port_ovl["cnpj"].apply(
+                    lambda x: pdf_parser._normalizar_cnpj(str(x)) if x else ""
+                )
+
+            exposicoes_ovl = {}
+            # Fundos investidos
+            if not df_port_ovl.empty:
+                for _, row_pdf_ovl in df_port_ovl.iterrows():
+                    cnpj_inv = row_pdf_ovl["cnpj_norm"]
+                    peso_f = row_pdf_ovl["pct_pl"] / 100.0
+                    if not cnpj_inv:
+                        continue
+                    # Mono-ativo
+                    if cnpj_inv in _MONO_ATIVO_MAP:
+                        tk = _MONO_ATIVO_MAP[cnpj_inv]
+                        exposicoes_ovl[tk] = exposicoes_ovl.get(tk, 0) + peso_f * 100.0
+                        continue
+                    cnpj_b = foco_to_direto.get(cnpj_inv, cnpj_inv)
+                    df_fp = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_b]
+                    if df_fp.empty:
+                        df_fp = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_inv]
+                    if df_fp.empty:
+                        continue
+                    dt_max = df_fp["data"].max()
+                    df_snap = df_fp[df_fp["data"] == dt_max]
+                    for _, acao_ovl in df_snap.iterrows():
+                        ticker = acao_ovl["ativo"]
+                        exp = peso_f * (acao_ovl.get("pct_pl", 0) or 0)
+                        exposicoes_ovl[ticker] = exposicoes_ovl.get(ticker, 0) + exp
+
+            # Ações diretas + ETFs
+            if not df_ad_ovl.empty:
+                for _, r_ad in df_ad_ovl.iterrows():
+                    tk_dir = r_ad["ticker"]
+                    peso_dir = r_ad["pct_pl"]
+                    if tk_dir in _ETF_INDEX_MAP:
+                        etf_comp = _fetch_etf_composition(tk_dir)
+                        if etf_comp:
+                            for tk_idx, p_idx in etf_comp.items():
+                                exp = peso_dir * (p_idx / 100.0)
+                                exposicoes_ovl[tk_idx] = exposicoes_ovl.get(tk_idx, 0) + exp
+                            continue
+                    exposicoes_ovl[tk_dir] = exposicoes_ovl.get(tk_dir, 0) + peso_dir
+
+            if exposicoes_ovl:
+                fund_explosions[nome_fundo_tag_ovl] = exposicoes_ovl
+
+        # Calcular sobreposição par-a-par
+        if len(fund_explosions) >= 2:
+            fund_names = list(fund_explosions.keys())
+            overlap_data = []
+            for i in range(len(fund_names)):
+                for j in range(i + 1, len(fund_names)):
+                    a, b = fund_names[i], fund_names[j]
+                    ovl = _calcular_sobreposicao_ativos(fund_explosions[a], fund_explosions[b])
+                    overlap_data.append({"Fundo A": a, "Fundo B": b, "Sobreposição (%)": f"{ovl:.2f}%"})
+
+            if overlap_data:
+                df_overlap = pd.DataFrame(overlap_data)
+                st.dataframe(df_overlap, use_container_width=True, hide_index=True)
+
+                # Ações em comum
+                all_tickers_sets = {name: set(exp.keys()) for name, exp in fund_explosions.items()}
+                common_all = set.intersection(*all_tickers_sets.values()) if all_tickers_sets else set()
+                if common_all:
+                    st.markdown(f"""<div style="
+                        background: {TAG_BG_CARD}; border: 1px solid {BORDER_COLOR};
+                        border-radius: 8px; padding: 12px 16px; margin-top: 8px;
+                        font-size: 13px; color: {TEXT_MUTED};">
+                        🔗 <b style="color: {TAG_LARANJA};">{len(common_all)}</b> ações em comum entre todos os fundos selecionados:
+                        <span style="color: {TAG_OFFWHITE};">{', '.join(sorted(common_all)[:20])}</span>
+                        {'...' if len(common_all) > 20 else ''}
+                    </div>""", unsafe_allow_html=True)
+        else:
+            st.info("Dados insuficientes para calcular sobreposição entre os fundos selecionados.")
 
 
 if __name__ == "__main__":

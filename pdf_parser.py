@@ -189,6 +189,124 @@ def _parse_portfolio_line(line: str) -> dict | None:
     }
 
 
+def extrair_acoes_diretas(data: str, nome_fundo: str) -> pd.DataFrame:
+    """
+    Extrai a seção 'Ações' do PDF (posições diretas em ações/ETFs).
+    Retorna DataFrame com: ticker, quantidade, cotacao, financeiro, pct_pl, ganho_diario, var_dia
+    """
+    try:
+        import pdfplumber
+    except ImportError:
+        return pd.DataFrame()
+
+    pdf_path = _get_pdf_path(data, nome_fundo)
+    if not os.path.exists(pdf_path):
+        return pd.DataFrame()
+
+    registros = []
+
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text() or ""
+                lines = text.split("\n")
+
+                in_acoes = False
+                past_header = False
+
+                for line in lines:
+                    line_clean = line.strip()
+
+                    # Detectar início da seção "Ações" (pode ter encoding issues)
+                    if re.match(r"^A[çc\x87\xe7][\xf5\xb5o]es$", line_clean) or re.match(r"^A..es$", line_clean):
+                        in_acoes = True
+                        past_header = False
+                        continue
+
+                    if not in_acoes:
+                        continue
+
+                    # Pular linha de cabeçalho
+                    if re.match(r"^Papel\s+", line_clean):
+                        past_header = True
+                        continue
+
+                    if not past_header:
+                        continue
+
+                    # Linha de total (só números, sem ticker) → fim da seção
+                    if re.match(r"^[\d,.()-]+\s+[\d,.()-]+$", line_clean):
+                        in_acoes = False
+                        break
+
+                    # Detectar próxima seção
+                    if re.search(r"Portf.lio\s+Investido", line_clean):
+                        in_acoes = False
+                        break
+                    if line_clean.startswith("Despesas"):
+                        in_acoes = False
+                        break
+
+                    # Parsear linha de ação
+                    # Formato: TICKER QTD COTAÇÃO FINANCEIRO %PL GANHO_DIA VAR_DIA
+                    # Ex: BOVA11 11,021 182.980000 2,016,622.58 16.16 (14,327.30) (0.71)
+                    registro = _parse_acao_line(line_clean)
+                    if registro:
+                        registros.append(registro)
+
+    except Exception:
+        return pd.DataFrame()
+
+    if not registros:
+        return pd.DataFrame()
+
+    return pd.DataFrame(registros)
+
+
+def _parse_acao_line(line: str) -> dict | None:
+    """
+    Parseia uma linha da seção Ações do PDF.
+    Formato: TICKER QTD COTAÇÃO FINANCEIRO %PL GANHO_DIA VAR_DIA
+    Ex: BOVA11 11,021 182.980000 2,016,622.58 16.16 (14,327.30) (0.71)
+    """
+    line = line.strip()
+    if not line:
+        return None
+
+    # Regex: TICKER (1+ chars alfanuméricos) seguido de campos numéricos
+    pattern = re.compile(
+        r"^([A-Z][A-Z0-9]{2,6}\d{0,2})\s+"   # ticker (ex: BOVA11, SBSP3, FRAS3)
+        r"([\d,]+)\s+"                          # quantidade (inteiro com separador de milhar)
+        r"([\d,]+\.\d+)\s+"                     # cotação
+        r"([\d,]+\.\d{2})\s+"                   # financeiro
+        r"([\d.]+)\s+"                           # %PL
+        r"(\(?[\d,]+\.\d{2}\)?)\s+"             # ganho diário (pode ter parênteses)
+        r"(\(?[\d.]+\)?)$"                       # var dia % (pode ter parênteses)
+    )
+
+    m = pattern.match(line)
+    if not m:
+        return None
+
+    ticker = m.group(1)
+    quantidade = _parse_valor(m.group(2))
+    cotacao = _parse_valor(m.group(3))
+    financeiro = _parse_valor(m.group(4))
+    pct_pl = _parse_valor(m.group(5))
+    ganho = _parse_valor(m.group(6))
+    var_dia = _parse_valor(m.group(7))
+
+    return {
+        "ticker": ticker,
+        "quantidade": quantidade,
+        "cotacao": cotacao,
+        "financeiro": financeiro,
+        "pct_pl": pct_pl,
+        "ganho_diario": ganho,
+        "var_dia": var_dia,
+    }
+
+
 def extrair_resumo(data: str, nome_fundo: str) -> dict:
     """
     Extrai metadados do resumo da carteira (página 1).

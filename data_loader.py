@@ -752,6 +752,34 @@ def carregar_dados_cvm(cnpjs_interesse: tuple, cnpjs_com_xml: tuple, meses: int 
 # ──────────────────────────────────────────────────────────────────────────────
 # Orquestrador principal
 # ──────────────────────────────────────────────────────────────────────────────
+@st.cache_data(ttl=3600)
+def carregar_fundamentals_explosao() -> pd.DataFrame:
+    """Carrega dados fundamentalistas para explosão (parquet cloud ou SQLite local).
+
+    Retorna DataFrame com colunas: ticker, indicador, valor
+    Tickers no formato 'VALE3.SA' (Yahoo Finance).
+    """
+    parquet_path = os.path.join(DATA_DIR, "fundamentals_explosao.parquet")
+
+    # Cloud mode ou parquet pré-exportado existe
+    if os.path.exists(parquet_path):
+        return pd.read_parquet(parquet_path)
+
+    # Local: ler direto do SQLite yahoo_finance.db
+    db_path = os.path.join(os.path.dirname(_SCRIPT_DIR), "yahoo_finance", "yahoo_finance.db")
+    if os.path.exists(db_path):
+        import sqlite3
+        conn = sqlite3.connect(db_path)
+        df = pd.read_sql_query(
+            "SELECT ticker, indicador, valor FROM fundamentalistas WHERE ticker LIKE '%.SA'",
+            conn,
+        )
+        conn.close()
+        return df
+
+    return pd.DataFrame(columns=["ticker", "indicador", "valor"])
+
+
 @st.cache_data(ttl=3600, show_spinner="Carregando dados...")
 def carregar_todos_dados() -> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -777,10 +805,17 @@ def carregar_todos_dados() -> tuple[pd.DataFrame, pd.DataFrame]:
 
     # 1. Dados XML (prioridade)
     df_xml = carregar_dados_xml(todos_cnpjs)
-    cnpjs_com_xml = tuple(set(df_xml["cnpj_fundo"].unique())) if not df_xml.empty else ()
+    # Só excluir da CVM os fundos cujo XML é recente (últimos 6 meses)
+    if not df_xml.empty:
+        _xml_d = pd.to_datetime(df_xml["data"])
+        _xml_max = _xml_d.groupby(df_xml["cnpj_fundo"]).max()
+        _cutoff = pd.Timestamp.now() - pd.DateOffset(months=6)
+        cnpjs_com_xml_recente = tuple(_xml_max[_xml_max >= _cutoff].index)
+    else:
+        cnpjs_com_xml_recente = ()
 
-    # 2. Dados CVM (fallback para quem não tem XML)
-    df_cvm = carregar_dados_cvm(todos_cnpjs, cnpjs_com_xml, meses=36)
+    # 2. Dados CVM (fallback para quem não tem XML recente)
+    df_cvm = carregar_dados_cvm(todos_cnpjs, cnpjs_com_xml_recente, meses=36)
 
     # 3. Unificar
     df_posicoes = pd.concat([df_xml, df_cvm], ignore_index=True)
@@ -788,44 +823,54 @@ def carregar_todos_dados() -> tuple[pd.DataFrame, pd.DataFrame]:
         df_posicoes = df_posicoes.sort_values(["cnpj_fundo", "data", "ativo"])
 
     # Mapear CNPJ-foco de volta para o fundo original
-    # Criar mapa: cnpj_foco_norm -> cnpj_norm do fundo
-    foco_map = {}
+    # Criar mapa: cnpj_foco -> lista de cnpj_direto (pode haver vários feeders)
+    from collections import defaultdict
+    foco_to_diretos = defaultdict(list)
     for _, row in df_fundos.iterrows():
         foco = row["cnpj_foco_norm"]
         direto = row["cnpj_norm"]
         if foco and foco != direto and foco != "":
-            foco_map[foco] = direto
+            foco_to_diretos[foco].append(direto)
 
-    # Substituir cnpj_foco pelo cnpj do fundo original nas posições
-    # Marcar quais registros vêm de CNPJ-FOCO (master) para priorização
-    if not df_posicoes.empty:
-        foco_cnpjs_set = set(foco_map.keys())
-        df_posicoes["_is_foco"] = df_posicoes["cnpj_fundo"].isin(foco_cnpjs_set)
-        df_posicoes["cnpj_fundo"] = df_posicoes["cnpj_fundo"].map(
-            lambda x: foco_map.get(x, x)
-        )
+    # Duplicar dados do foco para CADA feeder que aponta para ele
+    if not df_posicoes.empty and foco_to_diretos:
+        foco_cnpjs_set = set(foco_to_diretos.keys())
+        df_foco = df_posicoes[df_posicoes["cnpj_fundo"].isin(foco_cnpjs_set)].copy()
+        df_direto = df_posicoes[~df_posicoes["cnpj_fundo"].isin(foco_cnpjs_set)].copy()
 
-        # Deduplicar: se um fundo tem dados de CNPJ-FOCO (master) E do CNPJ direto
-        # para a mesma data, manter apenas os dados do CNPJ-FOCO (são a carteira real)
-        # Também deduplicar por (cnpj_fundo, data, ativo) mantendo a última ocorrência
+        foco_dups = []
+        for foco_cnpj, diretos in foco_to_diretos.items():
+            df_this = df_foco[df_foco["cnpj_fundo"] == foco_cnpj]
+            if df_this.empty:
+                continue
+            for direto_cnpj in diretos:
+                df_dup = df_this.copy()
+                df_dup["cnpj_fundo"] = direto_cnpj
+                df_dup["_is_foco"] = True
+                foco_dups.append(df_dup)
+
+        df_direto["_is_foco"] = False
+        if foco_dups:
+            df_posicoes = pd.concat([df_direto, pd.concat(foco_dups, ignore_index=True)], ignore_index=True)
+        else:
+            df_posicoes = df_direto
+
+        # Quando há dados foco E direto para mesmo (cnpj, data), preferir foco
         df_posicoes = df_posicoes.sort_values(
             ["cnpj_fundo", "data", "_is_foco", "ativo"],
             ascending=[True, True, True, True]
         )
-        # Agrupar por (cnpj, data) e manter apenas o grupo com _is_foco=True se existir
         keep_mask = []
         for (cnpj, dt), grp in df_posicoes.groupby(["cnpj_fundo", "data"]):
             if grp["_is_foco"].any() and not grp["_is_foco"].all():
-                # Tem ambos: manter apenas os de FOCO (master)
                 keep_mask.extend(grp[grp["_is_foco"]].index.tolist())
             else:
-                # Só tem um tipo: manter todos
                 keep_mask.extend(grp.index.tolist())
 
         df_posicoes = df_posicoes.loc[keep_mask]
         df_posicoes = df_posicoes.drop(columns=["_is_foco"])
 
-        # Deduplicar por (cnpj_fundo, data, ativo) - manter último (maior PL)
+        # Deduplicar por (cnpj_fundo, data, ativo) - manter último
         df_posicoes = df_posicoes.drop_duplicates(
             subset=["cnpj_fundo", "data", "ativo"], keep="last"
         )

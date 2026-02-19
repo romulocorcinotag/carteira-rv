@@ -54,6 +54,7 @@ SETOR_MAP = {
     'SMTO3': 'Alimentos e Bebidas', 'CAML3': 'Alimentos e Bebidas',
     'HBSA3': 'Alimentos e Bebidas', 'SLCE3': 'Alimentos e Bebidas',
     'AGRO3': 'Alimentos e Bebidas', 'MNPR3': 'Alimentos e Bebidas',
+    'BAUH3': 'Alimentos e Bebidas', 'BAUH4': 'Alimentos e Bebidas',
     # Construção e Imobiliário
     'CYRE3': 'Construção e Imob.', 'EZTC3': 'Construção e Imob.',
     'MRVE3': 'Construção e Imob.', 'EVEN3': 'Construção e Imob.',
@@ -87,7 +88,11 @@ SETOR_MAP = {
     'YDUQ3': 'Educação', 'COGN3': 'Educação', 'SEER3': 'Educação',
     # Shoppings
     'MULT3': 'Shoppings', 'IGTI11': 'Shoppings', 'ALSO3': 'Shoppings',
-    'ALOS3': 'Shoppings',
+    'ALOS3': 'Shoppings', 'SCAR3': 'Shoppings',
+    # Serviços Ambientais
+    'AMOB3': 'Serviços Ambientais',
+    # Consumo e Varejo (pet)
+    'AUAU3': 'Consumo e Varejo',
 }
 
 
