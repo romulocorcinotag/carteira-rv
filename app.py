@@ -829,7 +829,15 @@ def main():
         st.warning("Nenhum dado de carteira encontrado.")
         return
 
-    # ── Filtros ──
+    # ── Página atual (via sidebar) ──
+    pagina = st.session_state.get("pagina", "Carteira")
+
+    # Explosão tem fluxo próprio — sem filtros de Categoria/Tier/Fundo
+    if pagina == "Explosão":
+        _render_explosao(df_fundos, df_posicoes)
+        return
+
+    # ── Filtros (para demais páginas) ──
     col_cat, col_tier, col_fundo = st.columns([2, 1, 4])
 
     categorias = sorted(df_fundos["categoria"].dropna().unique().tolist())
@@ -866,9 +874,6 @@ def main():
 
     cnpjs_sel = [nome_cnpj_map[n] for n in fundos_sel]
     df_pos = df_posicoes[df_posicoes["cnpj_fundo"].isin(cnpjs_sel)].copy()
-
-    # ── Página atual (via sidebar) ──
-    pagina = st.session_state.get("pagina", "Carteira")
 
     # ══════════════════════════════════════════════════════════════════════
     # PÁGINA: CARTEIRA
@@ -2947,9 +2952,6 @@ Equal-weight seria: {_eq_weight:.0f}
     # ══════════════════════════════════════════════════════════════════════
     # PÁGINA: EXPLOSÃO (Decomposição de fundos TAG em ações subjacentes)
     # ══════════════════════════════════════════════════════════════════════
-    elif pagina == "Explosão":
-        _render_explosao(df_fundos, df_posicoes)
-
 
 # ──────────────────────────────────────────────────────────────────────────────
 # EXPLOSÃO — Função dedicada (fora do main para manter legibilidade)
