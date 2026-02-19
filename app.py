@@ -152,17 +152,17 @@ def inject_css():
            SIDEBAR — sempre visível, sem botão de fechar
         ══════════════════════════════════════════════════ */
         [data-testid="stSidebar"] {{
-            background: {TAG_BG_DARK} !important;
-            border-right: 1px solid {TAG_VERMELHO}25;
-            min-width: 260px !important;
-            max-width: 280px !important;
+            background: linear-gradient(180deg, {TAG_BG_DARK} 0%, #150812 100%) !important;
+            border-right: 2px solid {TAG_VERMELHO}40;
+            min-width: 270px !important;
+            max-width: 290px !important;
         }}
         /* Impedir collapse: esconder botão de fechar e forçar visibilidade */
         [data-testid="stSidebar"][aria-expanded="false"] {{
             display: block !important;
-            min-width: 260px !important;
-            max-width: 280px !important;
-            width: 260px !important;
+            min-width: 270px !important;
+            max-width: 290px !important;
+            width: 270px !important;
             transform: none !important;
             margin-left: 0 !important;
         }}
@@ -181,54 +181,91 @@ def inject_css():
         /* Sidebar logo */
         .sidebar-logo {{
             text-align: center;
-            padding: 32px 20px 8px 20px;
+            padding: 36px 24px 12px 24px;
         }}
         .sidebar-logo img {{
-            width: 160px;
+            width: 170px;
             height: auto;
             margin-bottom: 6px;
+            filter: drop-shadow(0 2px 8px rgba(99,13,36,0.3));
         }}
         .sidebar-logo .app-name {{
-            font-size: 0.85rem;
+            font-size: 0.95rem;
             color: {TAG_LARANJA};
-            margin-top: 8px;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            margin-top: 10px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
         }}
         .sidebar-logo .bar {{
-            width: 40px;
+            width: 60px;
             height: 2px;
-            background: {TAG_LARANJA};
-            margin: 8px auto 0;
+            background: linear-gradient(90deg, transparent, {TAG_LARANJA}, transparent);
+            margin: 10px auto 0;
         }}
-        /* Sidebar radio navigation */
+        /* Sidebar radio — esconder label "Navegacao" */
+        [data-testid="stSidebar"] .stRadio [data-testid="stWidgetLabel"] {{
+            display: none !important;
+        }}
         [data-testid="stSidebar"] .stRadio > div {{
             gap: 4px !important;
+            padding: 0 8px !important;
         }}
         [data-testid="stSidebar"] .stRadio label {{
-            padding: 12px 20px !important;
+            padding: 12px 14px !important;
             border-radius: 8px !important;
             cursor: pointer !important;
-            font-size: 0.95rem !important;
+            font-size: 0.88rem !important;
             font-weight: 500 !important;
             color: {TEXT_MUTED} !important;
             transition: all 0.2s ease !important;
             margin: 0 !important;
+            border: 1px solid transparent !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 10px !important;
         }}
         [data-testid="stSidebar"] .stRadio label:hover {{
-            background: {TAG_BG_CARD} !important;
+            background: {TAG_VERMELHO}15 !important;
             color: {TAG_OFFWHITE} !important;
         }}
+        /* Active radio item — sutil bg + texto claro */
         [data-testid="stSidebar"] .stRadio label[data-checked="true"],
         [data-testid="stSidebar"] .stRadio [aria-checked="true"] {{
-            background: linear-gradient(135deg, {TAG_VERMELHO} 0%, {TAG_VERMELHO_DARK} 100%) !important;
+            background: {TAG_VERMELHO}20 !important;
             color: {TAG_OFFWHITE} !important;
             font-weight: 700 !important;
-            box-shadow: 0 4px 12px rgba(99,13,36,0.3) !important;
+            border-color: {TAG_VERMELHO}35 !important;
         }}
-        /* Hide radio circles */
+        /* Radio circles — visíveis, estilo dot laranja */
         [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label > div:first-child {{
-            display: none !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            min-width: 18px !important;
+            width: 18px !important;
+            height: 18px !important;
+        }}
+        [data-testid="stSidebar"] .stRadio div[role="radiogroup"] label > div:first-child > div {{
+            width: 16px !important;
+            height: 16px !important;
+            border-radius: 50% !important;
+            border: 2px solid {TEXT_MUTED}80 !important;
+            background: transparent !important;
+            position: relative !important;
+            transition: all 0.2s ease !important;
+        }}
+        /* Active radio dot — laranja preenchido */
+        [data-testid="stSidebar"] .stRadio [aria-checked="true"] > div:first-child > div,
+        [data-testid="stSidebar"] .stRadio label[data-checked="true"] > div:first-child > div {{
+            border-color: {TAG_LARANJA} !important;
+            background: {TAG_LARANJA} !important;
+            box-shadow: 0 0 8px {TAG_LARANJA}60 !important;
+        }}
+        /* Sidebar dividers */
+        [data-testid="stSidebar"] hr {{
+            border-color: {TAG_VERMELHO}20 !important;
+            margin: 12px 16px !important;
         }}
 
         /* ══════════════════════════════════════════════════
@@ -482,14 +519,39 @@ def render_sidebar():
 
         st.markdown("---")
 
-        # Data atualização no rodapé da sidebar
+        # Data atualização no rodapé da sidebar — estilo info panel
         data_atualizacao = _get_data_atualizacao()
+
+        # Contar fundos no parquet
+        try:
+            _data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+            _pos_path = os.path.join(_data_dir, "posicoes_consolidado.parquet")
+            if os.path.exists(_pos_path):
+                import pyarrow.parquet as pq
+                _pf = pq.read_table(_pos_path, columns=["cnpj_fundo"])
+                _n_fundos = _pf.column("cnpj_fundo").to_pylist()
+                _n_fundos = len(set(_n_fundos))
+            else:
+                _n_fundos = "—"
+        except Exception:
+            _n_fundos = "—"
+
         st.markdown(f"""
-        <div style="text-align: center; padding: 8px 0;">
-            <div style="font-size: 0.7rem; color: {TEXT_MUTED}; text-transform: uppercase;
-                        letter-spacing: 1px; font-weight: 600;">Dados ate</div>
-            <div style="font-size: 0.9rem; color: {TAG_OFFWHITE}; font-weight: 700;
-                        margin-top: 2px;">{data_atualizacao}</div>
+        <div style="text-align: center; padding: 14px 16px; margin: 0 8px;
+                    background: linear-gradient(135deg, {TAG_VERMELHO}18 0%, {TAG_BG_CARD} 100%);
+                    border-radius: 10px;
+                    border: 1px solid {TAG_VERMELHO}25;">
+            <div style="font-size: 0.6rem; color: {TEXT_MUTED}; text-transform: uppercase;
+                        letter-spacing: 2px; font-weight: 600; margin-bottom: 6px;">
+                📅 Dados atualizados até</div>
+            <div style="font-size: 1rem; color: {TAG_LARANJA}; font-weight: 700;">
+                {data_atualizacao}</div>
+            <div style="width: 40px; height: 1px; background: {TAG_VERMELHO}30;
+                        margin: 8px auto;"></div>
+            <div style="font-size: 0.65rem; color: {TEXT_MUTED}; line-height: 1.6;">
+                📊 Base: <b style="color:{TAG_OFFWHITE}">{_n_fundos}</b> fundos CVM<br>
+                🗂️ Fonte: XML / BTG Pactual
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
