@@ -3128,6 +3128,25 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
             if foco and foco != direto and foco != "":
                 foco_to_direto[foco] = direto
 
+        # Mapeamento manual: feeders exclusivos TB/BTG → feeders equivalentes
+        # que temos nos dados XML/CVM (mesmo gestor/master fund)
+        _TB_FEEDER_MAP = {
+            "36017245000179": "37467515000106",  # NORTE LB FC FIA → NORTE LONG BIAS FIC
+            "54116160000120": "32068007000131",  # SHARP LB TB FC FIA → SHARP LONG BIASED FEEDER FIC
+            "42902399000146": "16617768000149",  # SPX FALCON 2 FIC FIA → SPX FALCON FIC ACOES
+            "42922205000174": "22232927000190",  # TARPON GT 90 FIC FIA → TARPON GT FIC ACOES
+            "39346123000114": "22232927000190",  # TARPON GT INS FC FIA → TARPON GT FIC ACOES
+            "10309539000180": "26956042000194",  # OCEANA VALOR FIA → OCEANA VALOR FIC ACOES
+            "52070019000108": "10500884000105",  # REAL INST FIC FIA → REAL INVESTOR FIC ACOES
+            "46961685000133": "11145320000156",  # TB ATMOS FC FIA → ATMOS ACOES FIC ACOES
+            "46331366000144": "11145320000156",  # ATME FC FIA (master ATMOS) → ATMOS ACOES FIC ACOES
+            "40226121000170": "09401978000130",  # PERFIN ALOC FC FIA → PERFIN FORESIGHT FIC ACOES
+        }
+        # Só adicionar se o destino realmente tem dados
+        for src, dst in _TB_FEEDER_MAP.items():
+            if dst in cnpjs_com_dados and src not in foco_to_direto:
+                foco_to_direto[src] = dst
+
         df_portfolio["tem_dados"] = df_portfolio["cnpj_norm"].apply(
             lambda cnpj: "✅" if (cnpj in cnpjs_com_dados or foco_to_direto.get(cnpj, cnpj) in cnpjs_com_dados) else ("⚠️" if cnpj == "" else "❌")
         )
