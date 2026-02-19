@@ -3198,7 +3198,10 @@ def _fetch_fundamentals_yfinance(tickers_sa: tuple) -> pd.DataFrame:
     """Busca dados fundamentalistas do yfinance para uma lista de tickers .SA.
     Retorna DataFrame wide (1 linha por ticker) com múltiplos e marketCap.
     """
-    import yfinance as yf
+    try:
+        import yfinance as yf
+    except ImportError:
+        return pd.DataFrame()
 
     _CAMPOS = [
         "trailingPE", "forwardPE", "priceToBook", "dividendYield",
