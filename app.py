@@ -2979,14 +2979,23 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
         data_sel_display = st.selectbox("Data (PDF BTG)", options=datas_display, index=0)
         data_sel = data_sel_display.replace("-", "")
 
-    # ── Listar fundos disponíveis (filtrar por RV/FIA) ──
+    # ── Listar fundos disponíveis (apenas fundos TAG de RV/ações) ──
     fundos_pdf = pdf_parser.listar_fundos_pdf(data_sel)
 
-    # Filtrar apenas fundos RV/FIA (conter FIA, FIC FIM, FIM, AÇÕES)
-    kw_rv = ["FIA", "FIC FIM", "FIM", "ACOES", "AÇÕES", "RV", "LONG"]
-    fundos_rv_pdf = [f for f in fundos_pdf if any(k in f.upper() for k in kw_rv)]
+    # Lista de fundos TAG de RV que investem em FIAs/ações
+    FUNDOS_RV_TAG = [
+        "VIT LB FIA",
+        "VIT ACOES FIA",
+        "TRANCOSO IBOV FIA",
+        "DUNAJUKO FIA",
+        "JUBA II FIA",
+        "PROFITABLE G FIA",
+        "SOLIS FIA",
+        "TB ATMOS FC FIA",
+    ]
+    fundos_rv_pdf = [f for f in fundos_pdf if f in FUNDOS_RV_TAG]
     if not fundos_rv_pdf:
-        fundos_rv_pdf = fundos_pdf  # fallback: mostrar todos
+        fundos_rv_pdf = [f for f in fundos_pdf if "FIA" in f.upper()]  # fallback
 
     with col_fundos_pdf:
         fundos_sel_pdf = st.multiselect(
