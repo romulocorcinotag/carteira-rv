@@ -744,8 +744,8 @@ def grafico_concentracao(df, cnpj, titulo_prefix):
         x=datas, y=top1_pcts,
         name="Maior posicao",
         mode="lines+markers",
-        line=dict(width=2.5, color=TAG_VERMELHO),
-        marker=dict(size=5, color=TAG_VERMELHO),
+        line=dict(width=2.5, color="#58C6F5"),
+        marker=dict(size=5, color="#58C6F5"),
         customdata=top1_nomes,
         hovertemplate="<b>%{x|%b/%Y}</b><br>%{customdata}: %{y:.1f}%<extra></extra>",
     ))
@@ -1085,18 +1085,18 @@ Equal-weight seria: {_eq_weight:.0f}
                         x=_hhi_dates, y=_hhi_vals,
                         mode="lines+markers",
                         name="HHI",
-                        line=dict(width=2.5, color=TAG_CHART_COLORS[4]),
-                        marker=dict(size=5, color=TAG_CHART_COLORS[4]),
+                        line=dict(width=2.5, color="#58C6F5"),
+                        marker=dict(size=5, color="#58C6F5"),
                         hovertemplate="<b>HHI</b><br>%{x|%d/%m/%Y}: %{y:.0f}<br>N ativos: %{customdata[0]}<br>Top1: %{customdata[1]:.1f}%<extra></extra>",
                         customdata=list(zip(_n_ativos_hist, _top1_hist)),
                     ))
 
                     # Faixas calibradas para fundos de ações BR
                     _faixas = [
-                        (0, 450, "rgba(107,222,151,0.06)", "#6BDE97", "Diversificado"),
-                        (450, 700, "rgba(255,187,0,0.06)", "#FFBB00", "Moderado"),
-                        (700, 1200, "rgba(255,136,83,0.06)", "#FF8853", "Concentrado"),
-                        (1200, max(max(_hhi_vals) * 1.15, 1500), "rgba(237,90,110,0.06)", "#ED5A6E", "Muito concentrado"),
+                        (0, 450, "rgba(107,222,151,0.05)", "#6BDE97", "Diversificado"),
+                        (450, 700, "rgba(255,187,0,0.05)", "#FFBB00", "Moderado"),
+                        (700, 1200, "rgba(255,187,0,0.03)", "#FF8853", "Concentrado"),
+                        (1200, max(max(_hhi_vals) * 1.15, 1500), "rgba(255,136,83,0.03)", "#FF8853", "Muito concentrado"),
                     ]
                     for _y0, _y1, _fill, _lcolor, _label in _faixas:
                         fig_hhi.add_hrect(
@@ -1105,7 +1105,7 @@ Equal-weight seria: {_eq_weight:.0f}
                             line_width=0,
                         )
                     # Linhas de referência
-                    for _yval, _lcolor, _label in [(450, "#6BDE97", "Diversificado"), (700, "#FFBB00", "Moderado"), (1200, "#ED5A6E", "Concentrado")]:
+                    for _yval, _lcolor, _label in [(450, "#6BDE97", "Diversificado"), (700, "#FFBB00", "Moderado"), (1200, "#FF8853", "Concentrado")]:
                         fig_hhi.add_hline(
                             y=_yval, line_dash="dot", line_color=_lcolor, line_width=1,
                             annotation_text=f"{_label} ({_yval})", annotation_position="bottom right",
@@ -1151,7 +1151,7 @@ Equal-weight seria: {_eq_weight:.0f}
                     fig_turn.add_trace(go.Bar(
                         x=_turnover_dates, y=_turnover_vals,
                         name="Turnover (% PL)",
-                        marker_color=_hex_to_rgba(TAG_VERMELHO, 0.7),
+                        marker_color=_hex_to_rgba(TAG_LARANJA, 0.7),
                         hovertemplate="<b>Turnover</b><br>%{x|%d/%m/%Y}: %{y:.1f}%<extra></extra>",
                     ))
                     _chart_layout(fig_turn, f"{nome_fundo} — Turnover da Carteira",
@@ -4011,7 +4011,7 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
                         background: {TAG_BG_CARD}; border: 1px solid {BORDER_COLOR};
                         border-radius: 8px; padding: 14px 16px; text-align: center;
                         border-left: 3px solid {hhi_color};">
-                        <div style="font-size: 11px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px;">HHI</div>
+                        <div style="font-size: 11px; color: {TEXT_MUTED}; text-transform: uppercase; letter-spacing: 0.5px;">HHI (Explosao)</div>
                         <div style="font-size: 22px; font-weight: 700; color: {hhi_color}; margin: 4px 0;">{hhi:.0f}</div>
                         <div style="font-size: 11px; color: {hhi_color};">{hhi_class}</div>
                     </div>""", unsafe_allow_html=True)
@@ -4028,8 +4028,28 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
                 with c_set:
                     st.markdown(metric_card("Setores", str(n_setores)), unsafe_allow_html=True)
                 with c_top1:
-                    top1_nome = df_consolidado.iloc[0]["ativo"] if len(df_consolidado) > 0 else "N/D"
+                    # Usar idx do maior peso para garantir nome correto
+                    _idx_top1 = weights.idxmax()
+                    top1_nome = df_consolidado.loc[_idx_top1, "ativo"] if _idx_top1 in df_consolidado.index else (df_consolidado.iloc[0]["ativo"] if len(df_consolidado) > 0 else "N/D")
                     st.markdown(metric_card("Maior Posição", f"{top1_nome} ({top1_pct:.1f}%)"), unsafe_allow_html=True)
+
+                # Legenda explicativa sobre o HHI
+                st.markdown(f"""<div style="
+                    background: {TAG_BG_CARD}; border: 1px solid {BORDER_COLOR};
+                    border-radius: 8px; padding: 12px 16px; margin: 8px 0 12px 0;
+                    font-size: 12px; line-height: 1.6; color: {TAG_OFFWHITE};">
+                    <strong style="color: {TAG_OFFWHITE};">Indice HHI — Concentracao da Carteira Explodida</strong><br>
+                    O HHI mede a concentracao considerando <b>todas as acoes subjacentes</b> (apos explosao dos sub-fundos, acoes diretas e ETFs).
+                    Quanto maior o HHI, mais concentrado o portfolio em poucas acoes.<br>
+                    <b>Calculo:</b> HHI = &Sigma;(w<sub>i</sub>)<sup>2</sup> &times; 10.000 &nbsp;—&nbsp;
+                    Ex: 20 acoes iguais &rarr; HHI = 500 &nbsp;|&nbsp; 10 acoes iguais &rarr; HHI = 1.000 &nbsp;|&nbsp; 5 acoes iguais &rarr; HHI = 2.000<br>
+                    <span style="color:#6BDE97;">&#9679;</span> <b>&lt;450</b> Diversificado &nbsp;&nbsp;
+                    <span style="color:#FFBB00;">&#9679;</span> <b>450-700</b> Moderado &nbsp;&nbsp;
+                    <span style="color:#FF8853;">&#9679;</span> <b>700-1.200</b> Concentrado &nbsp;&nbsp;
+                    <span style="color:#ED5A6E;">&#9679;</span> <b>&gt;1.200</b> Muito concentrado<br>
+                    <span style="color:{TEXT_MUTED};">O grafico historico pode apresentar valores diferentes do card atual porque a cobertura dos dados CVM varia mês a mês
+                    (fundos que nao reportaram posicoes em determinado mes reduzem o numero de acoes visiveis, elevando o HHI).</span>
+                </div>""", unsafe_allow_html=True)
 
                 # ── Gráfico HHI Histórico com faixas coloridas ──
                 # Usar dados de _compute_historical_explosion se disponíveis
@@ -4039,6 +4059,7 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
                     _hhi_dates_exp = []
                     _n_ativos_exp = []
                     _top1_exp = []
+                    _coverage_exp = []
 
                     for _dt in _datas_hhi_exp:
                         _snap = df_hist[df_hist["data"] == _dt]
@@ -4051,6 +4072,7 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
                             _hhi_dates_exp.append(_dt)
                             _n_ativos_exp.append(len(_w_snap))
                             _top1_exp.append(_w_snap.max())
+                            _coverage_exp.append(_w_snap.sum())
 
                     if len(_hhi_vals_exp) >= 2:
                         fig_hhi_exp = go.Figure()
@@ -4058,32 +4080,32 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
                         fig_hhi_exp.add_trace(go.Scatter(
                             x=_hhi_dates_exp, y=_hhi_vals_exp,
                             mode="lines+markers",
-                            name="HHI",
-                            line=dict(width=2.5, color=TAG_CHART_COLORS[4]),
-                            marker=dict(size=5, color=TAG_CHART_COLORS[4]),
-                            hovertemplate="<b>HHI</b><br>%{x|%b/%Y}: %{y:.0f}<br>N ativos: %{customdata[0]}<br>Top1: %{customdata[1]:.1f}%<extra></extra>",
-                            customdata=list(zip(_n_ativos_exp, _top1_exp)),
+                            name="HHI (Explosao)",
+                            line=dict(width=2.5, color="#58C6F5"),
+                            marker=dict(size=5, color="#58C6F5"),
+                            hovertemplate="<b>HHI (Explosao)</b><br>%{x|%d/%m/%Y}: %{y:.0f}<br>N acoes: %{customdata[0]}<br>Top1: %{customdata[1]:.1f}%<br>Cobertura: %{customdata[2]:.1f}% PL<extra></extra>",
+                            customdata=list(zip(_n_ativos_exp, _top1_exp, _coverage_exp)),
                         ))
 
-                        # Faixas coloridas de fundo
+                        # Faixas coloridas de fundo (tons suaves que contrastam com fundo escuro)
                         _max_hhi = max(max(_hhi_vals_exp) * 1.15, 800)
                         _faixas_exp = [
-                            (0, 450, "rgba(107,222,151,0.06)", "#6BDE97", "Diversificado"),
-                            (450, 700, "rgba(255,187,0,0.06)", "#FFBB00", "Moderado"),
-                            (700, 1200, "rgba(255,136,83,0.06)", "#FF8853", "Concentrado"),
-                            (1200, max(_max_hhi, 1500), "rgba(237,90,110,0.06)", "#ED5A6E", "Muito concentrado"),
+                            (0, 450, "rgba(107,222,151,0.05)", "#6BDE97", "Diversificado"),
+                            (450, 700, "rgba(255,187,0,0.05)", "#FFBB00", "Moderado"),
+                            (700, 1200, "rgba(255,187,0,0.03)", "#FF8853", "Concentrado"),
+                            (1200, max(_max_hhi, 1500), "rgba(255,136,83,0.03)", "#FF8853", "Muito concentrado"),
                         ]
                         for _y0, _y1, _fill, _lc, _lbl in _faixas_exp:
                             fig_hhi_exp.add_hrect(y0=_y0, y1=_y1, fillcolor=_fill, line_width=0)
 
-                        for _yval, _lc, _lbl in [(450, "#6BDE97", "Diversificado"), (700, "#FFBB00", "Moderado"), (1200, "#ED5A6E", "Concentrado")]:
+                        for _yval, _lc, _lbl in [(450, "#6BDE97", "Diversificado"), (700, "#FFBB00", "Moderado"), (1200, "#FF8853", "Concentrado")]:
                             fig_hhi_exp.add_hline(
                                 y=_yval, line_dash="dot", line_color=_lc, line_width=1,
                                 annotation_text=f"{_lbl} ({_yval})", annotation_position="bottom right",
                                 annotation_font_color=_lc, annotation_font_size=9,
                             )
 
-                        _chart_layout(fig_hhi_exp, f"{nome_fundo_tag} — Índice HHI de Concentração",
+                        _chart_layout(fig_hhi_exp, f"{nome_fundo_tag} — HHI da Carteira Explodida (Historico)",
                                       height=380, y_title="HHI", y_suffix="")
                         fig_hhi_exp.update_yaxes(range=[0, _max_hhi])
                         st.plotly_chart(fig_hhi_exp, use_container_width=True)
@@ -4119,8 +4141,8 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
                             x=_conc_dates, y=_top1_hist_pcts,
                             name="Maior posição",
                             mode="lines+markers",
-                            line=dict(width=2.5, color=TAG_VERMELHO),
-                            marker=dict(size=5, color=TAG_VERMELHO),
+                            line=dict(width=2.5, color="#58C6F5"),
+                            marker=dict(size=5, color="#58C6F5"),
                             customdata=_top1_hist_nomes,
                             hovertemplate="<b>%{x|%b/%Y}</b><br>%{customdata}: %{y:.1f}%<extra></extra>",
                         ))
