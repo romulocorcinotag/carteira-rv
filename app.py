@@ -3021,30 +3021,33 @@ Equal-weight seria: {_eq_weight:.0f}
 def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
     """Página Explosão: decomposição de fundos TAG em ações subjacentes via PDFs BTG."""
 
-    # ── Verificar se diretório de PDFs existe ──
-    if not pdf_parser._pdf_dir_exists():
+    # ── Detectar modo: PDFs locais ou parquet cloud ──
+    _modo_pdf = pdf_parser._pdf_dir_exists()
+    _data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+    _parquet_portfolios = os.path.join(_data_dir, "explosao_portfolios.parquet")
+    _parquet_resumos = os.path.join(_data_dir, "explosao_resumos.parquet")
+    _modo_cloud = os.path.exists(_parquet_portfolios)
+
+    if not _modo_pdf and not _modo_cloud:
         st.warning(
-            "📂 Diretório de PDFs do BTG não encontrado. "
-            "Esta funcionalidade só está disponível no ambiente local com acesso à rede."
+            "📂 Dados de Explosão não disponíveis. "
+            "Execute `python export_data.py` localmente para exportar os dados dos PDFs."
         )
         return
 
-    # ── Seletor de data ──
-    datas_pdf = pdf_parser.listar_datas_disponiveis()
-    if not datas_pdf:
-        st.warning("Nenhuma data disponível nos PDFs do BTG.")
+    # ── Carregar dados conforme modo ──
+    if _modo_cloud and not _modo_pdf:
+        df_all_portfolios = pd.read_parquet(_parquet_portfolios)
+        df_all_resumos = pd.read_parquet(_parquet_resumos) if os.path.exists(_parquet_resumos) else pd.DataFrame()
+        datas_pdf = sorted(df_all_portfolios["data_pdf"].unique(), reverse=True)
+    else:
+        df_all_portfolios = None  # será lido sob demanda dos PDFs
+        df_all_resumos = None
+        datas_pdf = pdf_parser.listar_datas_disponiveis()
+
+    if not datas_pdf or len(datas_pdf) == 0:
+        st.warning("Nenhuma data disponível.")
         return
-
-    col_data, col_fundos_pdf = st.columns([1, 3])
-
-    with col_data:
-        # Formatar datas para exibição
-        datas_display = [f"{d[:4]}-{d[4:6]}-{d[6:]}" for d in datas_pdf[:60]]
-        data_sel_display = st.selectbox("Data (PDF BTG)", options=datas_display, index=0)
-        data_sel = data_sel_display.replace("-", "")
-
-    # ── Listar fundos disponíveis (apenas fundos TAG de RV/ações) ──
-    fundos_pdf = pdf_parser.listar_fundos_pdf(data_sel)
 
     # Lista de fundos TAG de RV que investem em FIAs/ações
     FUNDOS_RV_TAG = [
@@ -3057,9 +3060,24 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
         "SOLIS FIA",
         "TB ATMOS FC FIA",
     ]
-    fundos_rv_pdf = [f for f in fundos_pdf if f in FUNDOS_RV_TAG]
-    if not fundos_rv_pdf:
-        fundos_rv_pdf = [f for f in fundos_pdf if "FIA" in f.upper()]  # fallback
+
+    col_data, col_fundos_pdf = st.columns([1, 3])
+
+    with col_data:
+        datas_display = [f"{d[:4]}-{d[4:6]}-{d[6:]}" for d in datas_pdf[:60]]
+        data_sel_display = st.selectbox("Data (PDF BTG)", options=datas_display, index=0)
+        data_sel = data_sel_display.replace("-", "")
+
+    # ── Listar fundos disponíveis ──
+    if _modo_pdf:
+        fundos_pdf = pdf_parser.listar_fundos_pdf(data_sel)
+        fundos_rv_pdf = [f for f in fundos_pdf if f in FUNDOS_RV_TAG]
+        if not fundos_rv_pdf:
+            fundos_rv_pdf = [f for f in fundos_pdf if "FIA" in f.upper()]
+    else:
+        fundos_rv_pdf = sorted(
+            df_all_portfolios[df_all_portfolios["data_pdf"] == data_sel]["fundo_tag"].unique()
+        )
 
     with col_fundos_pdf:
         fundos_sel_pdf = st.multiselect(
@@ -3084,9 +3102,20 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
     for nome_fundo_tag in fundos_sel_pdf:
         st.markdown(f"### 💥 {nome_fundo_tag}")
 
-        # Resumo do fundo
-        resumo = pdf_parser.extrair_resumo(data_sel, nome_fundo_tag)
-        df_portfolio = pdf_parser.extrair_portfolio_investido(data_sel, nome_fundo_tag)
+        # Resumo e portfolio — PDF local ou parquet cloud
+        if _modo_pdf:
+            resumo = pdf_parser.extrair_resumo(data_sel, nome_fundo_tag)
+            df_portfolio = pdf_parser.extrair_portfolio_investido(data_sel, nome_fundo_tag)
+        else:
+            # Ler do parquet
+            mask = (df_all_portfolios["data_pdf"] == data_sel) & (df_all_portfolios["fundo_tag"] == nome_fundo_tag)
+            df_portfolio = df_all_portfolios[mask].drop(columns=["data_pdf", "fundo_tag"], errors="ignore").copy()
+            resumo = {}
+            if not df_all_resumos.empty:
+                mask_r = (df_all_resumos["data_pdf"] == data_sel) & (df_all_resumos["fundo_tag"] == nome_fundo_tag)
+                resumo_rows = df_all_resumos[mask_r]
+                if len(resumo_rows) > 0:
+                    resumo = resumo_rows.iloc[0].to_dict()
 
         if df_portfolio.empty:
             st.warning(f"Não foi possível extrair o portfólio investido de {nome_fundo_tag}.")

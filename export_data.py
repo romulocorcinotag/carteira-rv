@@ -127,14 +127,14 @@ def main():
     fundos_path = os.path.join(DATA_DIR, "fundos_rv.parquet")
     if args.ci:
         # CI: usa parquet existente (Base Geral.xlsm não disponível)
-        print("\n[1/6] Carregando fundos RV do parquet existente...")
+        print("\n[1/7] Carregando fundos RV do parquet existente...")
         if not os.path.exists(fundos_path):
             print("  ERRO: fundos_rv.parquet não encontrado! Execute localmente primeiro.")
             sys.exit(1)
         df_fundos = pd.read_parquet(fundos_path)
         print(f"  -> {len(df_fundos)} fundos (cache)")
     else:
-        print("\n[1/6] Carregando fundos RV...")
+        print("\n[1/7] Carregando fundos RV...")
         t0 = time.time()
         df_fundos = carregar_fundos_rv()
         print(f"  -> {len(df_fundos)} fundos em {time.time()-t0:.1f}s")
@@ -148,7 +148,7 @@ def main():
     xml_path = os.path.join(DATA_DIR, "posicoes_xml.parquet")
     if args.ci:
         # CI: usa parquet existente (XMLs no Google Drive não disponíveis)
-        print("\n[2/6] XMLs: usando parquet existente (modo CI)...")
+        print("\n[2/7] XMLs: usando parquet existente (modo CI)...")
         if os.path.exists(xml_path):
             df_xml = pd.read_parquet(xml_path)
             df_xml["data"] = pd.to_datetime(df_xml["data"])
@@ -157,7 +157,7 @@ def main():
             df_xml = pd.DataFrame()
             print("  -> Sem dados XML (parquet não encontrado)")
     elif not args.full and os.path.exists(xml_path):
-        print("\n[2/6] XMLs: verificando incrementalmente...")
+        print("\n[2/7] XMLs: verificando incrementalmente...")
         df_xml_old = pd.read_parquet(xml_path)
         df_xml_old["data"] = pd.to_datetime(df_xml_old["data"])
         old_max_date = df_xml_old["data"].max()
@@ -176,7 +176,7 @@ def main():
             print(f"  -> Sem mudancas ({len(df_xml)} registros)")
         print(f"  -> {time.time()-t0:.1f}s")
     else:
-        print("\n[2/6] Processando todos os XMLs...")
+        print("\n[2/7] Processando todos os XMLs...")
         t0 = time.time()
         df_xml = carregar_dados_xml(todos_cnpjs)
         print(f"  -> {len(df_xml)} registros XML em {time.time()-t0:.1f}s")
@@ -187,7 +187,7 @@ def main():
     cnpjs_com_xml = tuple(set(df_xml["cnpj_fundo"].unique())) if not df_xml.empty else ()
 
     if not args.full and os.path.exists(cvm_path):
-        print("\n[3/6] CVM: verificando meses novos...")
+        print("\n[3/7] CVM: verificando meses novos...")
         df_cvm_old = pd.read_parquet(cvm_path)
         df_cvm_old["data"] = pd.to_datetime(df_cvm_old["data"])
         meses_existentes = set(df_cvm_old["data"].dt.strftime("%Y%m").unique())
@@ -285,14 +285,14 @@ def main():
         df_cvm.to_parquet(cvm_path, index=False)
         print(f"  -> Total CVM: {len(df_cvm)} registros")
     else:
-        print("\n[3/6] Baixando todos os dados CVM (36 meses)...")
+        print("\n[3/7] Baixando todos os dados CVM (36 meses)...")
         t0 = time.time()
         df_cvm = carregar_dados_cvm(todos_cnpjs, cnpjs_com_xml, meses=36)
         print(f"  -> {len(df_cvm)} registros CVM em {time.time()-t0:.1f}s")
         df_cvm.to_parquet(cvm_path, index=False)
 
     # ── 4. Consolidar com dedup ──
-    print("\n[4/6] Consolidando com deduplicacao...")
+    print("\n[4/7] Consolidando com deduplicacao...")
     df_posicoes = pd.concat([df_xml, df_cvm], ignore_index=True)
     df_posicoes = _dedup_consolidado(df_posicoes, df_fundos)
 
@@ -301,7 +301,7 @@ def main():
     print(f"  -> CNPJs com dados: {df_posicoes['cnpj_fundo'].nunique()}")
 
     # ── 5. Cotas dos fundos (inf_diario) ──
-    print("\n[5/6] Exportando cotas dos fundos (10 anos)...")
+    print("\n[5/7] Exportando cotas dos fundos (10 anos)...")
     t0 = time.time()
     all_cnpjs_cotas = tuple(set(
         df_fundos["cnpj_norm"].dropna().tolist()
@@ -312,7 +312,7 @@ def main():
     print(f"  -> {len(df_cotas)} registros de cotas em {time.time()-t0:.1f}s")
 
     # ── 6. Estatísticas do universo ──
-    print("\n[6/6] Calculando estatisticas do universo (10 anos)...")
+    print("\n[6/7] Calculando estatisticas do universo (10 anos)...")
     t0 = time.time()
     df_stats = carregar_universo_stats(meses=120)
     stats_path = os.path.join(DATA_DIR, "universo_stats.parquet")
@@ -321,6 +321,60 @@ def main():
         print(f"  -> {len(df_stats)} datas com stats em {time.time()-t0:.1f}s")
     else:
         print(f"  -> Sem dados de universo (cache pode estar indisponivel)")
+
+    # ── 7. Explosão: dados dos PDFs BTG para modo cloud ──
+    print("\n[7/7] Exportando dados de Explosao (PDFs BTG)...")
+    t0 = time.time()
+    import pdf_parser
+
+    FUNDOS_RV_TAG = [
+        "VIT LB FIA", "VIT ACOES FIA", "TRANCOSO IBOV FIA",
+        "DUNAJUKO FIA", "JUBA II FIA", "PROFITABLE G FIA",
+        "SOLIS FIA", "TB ATMOS FC FIA",
+    ]
+
+    if pdf_parser._pdf_dir_exists():
+        datas_pdf = pdf_parser.listar_datas_disponiveis()
+        all_portfolios = []
+        all_resumos = []
+
+        # Exportar as 5 datas mais recentes
+        for data_pdf in datas_pdf[:5]:
+            fundos_pdf = pdf_parser.listar_fundos_pdf(data_pdf)
+            fundos_rv = [f for f in fundos_pdf if f in FUNDOS_RV_TAG]
+            if not fundos_rv:
+                fundos_rv = [f for f in fundos_pdf if "FIA" in f.upper()]
+
+            for fundo in fundos_rv:
+                # Portfolio investido
+                df_port = pdf_parser.extrair_portfolio_investido(data_pdf, fundo)
+                if not df_port.empty:
+                    df_port["data_pdf"] = data_pdf
+                    df_port["fundo_tag"] = fundo
+                    all_portfolios.append(df_port)
+
+                # Resumo
+                resumo = pdf_parser.extrair_resumo(data_pdf, fundo)
+                if resumo:
+                    resumo["data_pdf"] = data_pdf
+                    resumo["fundo_tag"] = fundo
+                    all_resumos.append(resumo)
+
+        if all_portfolios:
+            df_explosao = pd.concat(all_portfolios, ignore_index=True)
+            df_explosao.to_parquet(os.path.join(DATA_DIR, "explosao_portfolios.parquet"), index=False)
+            print(f"  -> {len(df_explosao)} holdings de {len(all_portfolios)} portfolios")
+        else:
+            print(f"  -> Nenhum portfolio extraido")
+
+        if all_resumos:
+            df_resumos = pd.DataFrame(all_resumos)
+            df_resumos.to_parquet(os.path.join(DATA_DIR, "explosao_resumos.parquet"), index=False)
+            print(f"  -> {len(df_resumos)} resumos exportados")
+
+        print(f"  -> {time.time()-t0:.1f}s")
+    else:
+        print(f"  -> Diretorio de PDFs nao encontrado (pulando)")
 
     # Resumo
     total_size = sum(
