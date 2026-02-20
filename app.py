@@ -3336,6 +3336,13 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
         "TB ATMOS FC FIA",
     ]
 
+    # Fundos TAG com posições diretas em ações (custódia Mellon — sem PDF BTG)
+    # CNPJ → nome display
+    _SYNTA_DIRETOS = {
+        "20214858000166": "SYNTA FIA",
+        "51564188000131": "SYNTA FIA II",
+    }
+
     col_data, col_fundos_pdf = st.columns([1, 3])
 
     with col_data:
@@ -3353,6 +3360,13 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
         fundos_rv_pdf = sorted(
             df_all_portfolios[df_all_portfolios["data_pdf"] == data_sel]["fundo_tag"].unique()
         )
+
+    # Adicionar fundos SYNTA (posições diretas via XML Mellon, sem PDF BTG)
+    for _cnpj_synta, _nome_synta in _SYNTA_DIRETOS.items():
+        if _nome_synta not in fundos_rv_pdf:
+            # Verificar se temos dados XML para este fundo
+            if not df_posicoes.empty and _cnpj_synta in df_posicoes["cnpj_fundo"].values:
+                fundos_rv_pdf.append(_nome_synta)
 
     with col_fundos_pdf:
         fundos_sel_pdf = st.multiselect(
@@ -3377,8 +3391,40 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
     for nome_fundo_tag in fundos_sel_pdf:
         st.markdown(f"### 💥 {nome_fundo_tag}")
 
+        # Detectar se é fundo SYNTA (posições XML diretas, sem PDF BTG)
+        _synta_cnpj = None
+        for _sc, _sn in _SYNTA_DIRETOS.items():
+            if _sn == nome_fundo_tag:
+                _synta_cnpj = _sc
+                break
+
+        if _synta_cnpj:
+            # SYNTA: carregar posições diretamente dos XMLs (posicoes_consolidado)
+            df_portfolio = pd.DataFrame(columns=["cnpj", "nome_portfolio", "quantidade", "quota",
+                                                   "financeiro", "pct_pl", "ganho_diario", "cnpj_norm"])
+            resumo = {}
+            # Buscar snapshot mais recente do fundo
+            _df_synta = df_posicoes[df_posicoes["cnpj_fundo"] == _synta_cnpj].copy()
+            if not _df_synta.empty:
+                _data_max = _df_synta["data"].max()
+                _snap = _df_synta[_df_synta["data"] == _data_max]
+                _pl = _snap["pl"].iloc[0] if "pl" in _snap.columns and not _snap["pl"].isna().all() else 0
+                resumo = {"patrimonio": _pl, "data": str(_data_max.date())}
+                # Converter para formato df_acoes_dir (compatível com seção "Ações")
+                df_acoes_dir = pd.DataFrame({
+                    "ticker": _snap["ativo"].values,
+                    "pct_pl": _snap["pct_pl"].values,
+                    "financeiro": _snap["valor"].values if "valor" in _snap.columns else 0,
+                    "quantidade": 0,
+                    "cotacao": 0,
+                    "ganho_diario": 0,
+                    "var_dia": 0,
+                })
+            else:
+                df_acoes_dir = pd.DataFrame()
+
         # Resumo, portfolio e ações diretas — PDF local ou parquet cloud
-        if _modo_pdf:
+        elif _modo_pdf:
             resumo = pdf_parser.extrair_resumo(data_sel, nome_fundo_tag)
             df_portfolio = pdf_parser.extrair_portfolio_investido(data_sel, nome_fundo_tag)
             df_acoes_dir = pdf_parser.extrair_acoes_diretas(data_sel, nome_fundo_tag)
@@ -3426,9 +3472,12 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
             st.markdown(metric_card("% PL Total", f"{total_pct:.1f}%"), unsafe_allow_html=True)
 
         # ── Tabela Nível 1: Fundos investidos + Ações diretas ──
-        _title_lv1 = "Composição do Portfólio (PDF BTG)"
-        if n_acoes_dir > 0:
+        if _synta_cnpj:
+            _title_lv1 = "Posições em Ações (XML Mellon)"
+        elif n_acoes_dir > 0:
             _title_lv1 = "Fundos Investidos + Ações Diretas (PDF BTG)"
+        else:
+            _title_lv1 = "Composição do Portfólio (PDF BTG)"
         st.markdown(f'<div class="tag-section-title">{_title_lv1}</div>', unsafe_allow_html=True)
 
         # Normalizar CNPJs do PDF para cruzamento
