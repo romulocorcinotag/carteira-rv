@@ -29,6 +29,7 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(_SCRIPT_DIR, "data")
 BASE_GERAL_PATH = r"G:\Drives compartilhados\Gestao_Base_Dados\Acompanhamento\Base Geral.xlsm"
 XML_BASE_PATH = r"G:\Drives compartilhados\Arquivos_XML_Fechamento"
+XML_MELLON_PATH = r"G:\Drives compartilhados\SisIntegra\AMBIENTE_PRODUCAO\Posicao_XML\Mellon"
 CACHE_DIR = os.path.join(_SCRIPT_DIR, "cache")
 CVM_ZIP_URL = "https://dados.cvm.gov.br/dados/FI/DOC/CDA/DADOS/cda_fi_{yyyymm}.zip"
 CVM_BLC4_ZIP_URL = "https://dados.cvm.gov.br/dados/FI/DOC/CDA/DADOS/cda_fi_BLC_4_{yyyymm}.zip"
@@ -61,6 +62,29 @@ def _normalizar_cnpj(cnpj: str) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
+# Fundos adicionais (custódia Mellon — não estão na Base Geral)
+# ──────────────────────────────────────────────────────────────────────────────
+_SYNTA_FUNDOS = [
+    {"nome": "SYNTA FIF AÇÕES RESP LTDA", "cnpj": "20.214.858/0001-66",
+     "categoria": "RV Valor/Retorno Absoluto", "tier": 1, "master": None,
+     "cnpj_foco": None, "enquadramento": None, "geri": "TAG INVESTIMENTOS"},
+    {"nome": "SYNTA FIF EM ACOES II RESP LTDA", "cnpj": "51.564.188/0001-31",
+     "categoria": "RV Valor/Retorno Absoluto", "tier": 1, "master": None,
+     "cnpj_foco": None, "enquadramento": None, "geri": "VINCI"},
+]
+
+
+def _append_synta_fundos(df: pd.DataFrame) -> pd.DataFrame:
+    """Adiciona fundos SYNTA (Mellon) ao DataFrame se não presentes."""
+    for sf in _SYNTA_FUNDOS:
+        cnpj_n = _normalizar_cnpj(sf["cnpj"])
+        if cnpj_n not in df["cnpj_norm"].values:
+            row = {**sf, "cnpj_norm": cnpj_n, "cnpj_foco_norm": ""}
+            df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    return df
+
+
+# ──────────────────────────────────────────────────────────────────────────────
 # Carregar fundos RV da Base Geral
 # ──────────────────────────────────────────────────────────────────────────────
 @st.cache_data(ttl=3600)
@@ -70,7 +94,8 @@ def carregar_fundos_rv() -> pd.DataFrame:
     parquet_path = os.path.join(DATA_DIR, "fundos_rv.parquet")
     if CLOUD_MODE or not os.path.exists(BASE_GERAL_PATH):
         if os.path.exists(parquet_path):
-            return pd.read_parquet(parquet_path)
+            df = pd.read_parquet(parquet_path)
+            return _append_synta_fundos(df)
         raise FileNotFoundError("Nenhuma fonte de dados de fundos disponível. Execute export_data.py localmente.")
 
     # Modo local: ler do Excel
@@ -95,7 +120,7 @@ def carregar_fundos_rv() -> pd.DataFrame:
     df = pd.DataFrame(fundos)
     df["cnpj_norm"] = df["cnpj"].apply(_normalizar_cnpj)
     df["cnpj_foco_norm"] = df["cnpj_foco"].apply(_normalizar_cnpj)
-    return df
+    return _append_synta_fundos(df)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -277,6 +302,28 @@ def _listar_xmls() -> list[str]:
     return xmls
 
 
+def _listar_xmls_mellon() -> list[str]:
+    """Lista XMLs da pasta Mellon (estrutura YYYYMMDD/arquivos)."""
+    xmls = []
+    if not os.path.exists(XML_MELLON_PATH):
+        return xmls
+    try:
+        pastas = [d for d in os.listdir(XML_MELLON_PATH) if d.isdigit() and len(d) == 8]
+    except OSError:
+        return xmls
+    for pasta in sorted(pastas):
+        pasta_path = os.path.join(XML_MELLON_PATH, pasta)
+        if not os.path.isdir(pasta_path):
+            continue
+        try:
+            for f in os.listdir(pasta_path):
+                if f.lower().endswith(".xml") and not f.startswith("~"):
+                    xmls.append(os.path.join(pasta_path, f))
+        except OSError:
+            continue
+    return xmls
+
+
 def _cnpj_from_filename(filename: str) -> str:
     """Tenta extrair CNPJ do prefixo FD/FC/CL no nome do arquivo."""
     base = os.path.basename(filename)
@@ -292,7 +339,7 @@ def _descobrir_xmls_por_cnpj(cnpjs_interesse: tuple) -> dict:
     Retorna {cnpj_norm: [lista de paths XML]} para CNPJs de interesse.
     """
     cnpjs_set = set(cnpjs_interesse)
-    all_xmls = _listar_xmls()
+    all_xmls = _listar_xmls() + _listar_xmls_mellon()
 
     # Primeiro: tentar extrair CNPJ do filename (rápido)
     cnpj_to_files = defaultdict(list)
