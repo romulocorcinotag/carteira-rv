@@ -2584,27 +2584,8 @@ Equal-weight seria: {_eq_weight:.0f}
     # PÁGINA: DESTAQUES (Rankings multi-janela — inspirado relatório RV Long Only)
     # ══════════════════════════════════════════════════════════════════════
     elif pagina == "Destaques":
-        # ── Filtros de Categoria e Tier para Destaques ──
-        col_dest_cat, col_dest_tier = st.columns(2)
-        with col_dest_cat:
-            dest_categorias = sorted(df_fundos["categoria"].dropna().unique().tolist())
-            dest_cat_sel = st.multiselect(
-                "Categoria", options=dest_categorias, default=[],
-                key="dest_cat_filter"
-            )
-        with col_dest_tier:
-            dest_tiers = sorted(df_fundos["tier"].dropna().unique().tolist())
-            dest_tier_sel = st.multiselect(
-                "Tier", options=dest_tiers, default=[],
-                key="dest_tier_filter"
-            )
-
-        # Aplicar filtros ao universo de fundos
-        df_fundos_dest = df_fundos.copy()
-        if dest_cat_sel:
-            df_fundos_dest = df_fundos_dest[df_fundos_dest["categoria"].isin(dest_cat_sel)]
-        if dest_tier_sel:
-            df_fundos_dest = df_fundos_dest[df_fundos_dest["tier"].isin(dest_tier_sel)]
+        # Usar filtros globais de Categoria/Tier/Fundo (já aplicados em df_fundos_filtrado)
+        df_fundos_dest = df_fundos_filtrado.copy() if cat_sel or tier_sel else df_fundos.copy()
 
         all_cnpjs_destaques = tuple(set(df_fundos_dest["cnpj_norm"].dropna().tolist()))
         df_cotas_all = carregar_cotas_fundos(
@@ -2699,31 +2680,28 @@ Equal-weight seria: {_eq_weight:.0f}
                     # Calcular estatísticas do universo
                     df_funds_only = df_ret_all.loc[df_ret_all.index.isin(fund_cnpjs_d)]
 
+                    # ── Janelas disponíveis ──
+                    janelas_disp = [c for c in results.keys() if c in df_ret_all.columns]
+                    bench_names = list(BENCHMARK_CNPJS.keys())
+
+                    # ── Seletor de janela para ordenação (antes da tabela) ──
+                    janela_rank = st.selectbox(
+                        "Ordenar ranking por:", janelas_disp,
+                        index=min(0, len(janelas_disp) - 1),
+                        key="dest_janela"
+                    )
+
+                    # Reordenar colunas: janela selecionada primeiro, depois as demais na ordem original
+                    janelas_disp_ordered = [janela_rank] + [j for j in janelas_disp if j != janela_rank]
+
                     # ── 1. Resumo do Universo ──
                     st.markdown('<div class="tag-section-title">Desempenho do Universo de Fundos RV</div>', unsafe_allow_html=True)
                     filtro_desc = ""
-                    if dest_cat_sel:
-                        filtro_desc += f" | Cat: {', '.join(dest_cat_sel)}"
-                    if dest_tier_sel:
-                        filtro_desc += f" | Tier: {', '.join(str(t) for t in dest_tier_sel)}"
+                    if cat_sel:
+                        filtro_desc += f" | Cat: {', '.join(cat_sel)}"
+                    if tier_sel:
+                        filtro_desc += f" | Tier: {', '.join(str(t) for t in tier_sel)}"
                     st.caption(f"Amostra de {len(df_funds_only)} fundos de acoes. Data ref: {max_date.strftime('%d/%m/%Y')}.{filtro_desc}")
-
-                    # Tabela de resumo (tipo o PDF)
-                    summary_rows = []
-                    for col in df_ret_all.columns:
-                        if col == "nome":
-                            continue
-                        fund_vals = df_funds_only[col].dropna()
-                        if fund_vals.empty:
-                            continue
-                        summary_rows.append({
-                            "": f"Media Top 20",
-                            col: f"{fund_vals.nlargest(20).mean():.1f}%",
-                        })
-
-                    # Construir tabela HTML profissional com resumo
-                    janelas_disp = [c for c in results.keys() if c in df_ret_all.columns]
-                    bench_names = list(BENCHMARK_CNPJS.keys())
 
                     # Retornos do IBOVESPA por janela (referência para colorir)
                     ibov_cnpj_d = BENCHMARK_CNPJS.get("IBOVESPA", "")
@@ -2745,7 +2723,10 @@ Equal-weight seria: {_eq_weight:.0f}
                             return "background: rgba(237,90,110,0.15); color: #ED5A6E;"
 
                     # Build summary table HTML
-                    th_cells = "".join(f'<th style="padding:10px 12px; text-align:right; color:{TAG_OFFWHITE}; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.8px;">{j}</th>' for j in janelas_disp)
+                    th_cells = "".join(
+                        f'<th style="padding:10px 12px; text-align:right; color:{TAG_LARANJA if j == janela_rank else TAG_OFFWHITE}; font-size:10px; font-weight:{"800" if j == janela_rank else "700"}; text-transform:uppercase; letter-spacing:0.8px;">{j}</th>'
+                        for j in janelas_disp_ordered
+                    )
                     summary_html = f"""
                     <div style="border-radius:12px; overflow:hidden; border:1px solid {BORDER_COLOR}; background:{CARD_BG}; margin:8px 0 24px 0;">
                     <table style="width:100%; border-collapse:collapse; font-family:Tahoma,sans-serif;">
@@ -2774,7 +2755,7 @@ Equal-weight seria: {_eq_weight:.0f}
 
                     for sr_label, sr_fn, sr_color in stat_rows:
                         cells = ""
-                        for col in janelas_disp:
+                        for col in janelas_disp_ordered:
                             if sr_fn is not None:
                                 vals = df_funds_only[col].dropna()
                                 if vals.empty:
@@ -2793,18 +2774,12 @@ Equal-weight seria: {_eq_weight:.0f}
                                     cells += f'<td style="padding:8px 12px; text-align:right; color:{TEXT_MUTED};">—</td>'
                                     continue
                             neg = "color:#ED5A6E;" if v < 0 else ""
-                            cells += f'<td style="padding:8px 12px; text-align:right; font-weight:600; font-size:13px; {neg} color:{sr_color};">{v:.1f}%</td>'
+                            bold_col = "font-weight:800;" if col == janela_rank else "font-weight:600;"
+                            cells += f'<td style="padding:8px 12px; text-align:right; {bold_col} font-size:13px; {neg} color:{sr_color};">{v:.1f}%</td>'
                         summary_html += f'<tr style="border-bottom:1px solid {BORDER_COLOR}60;"><td style="padding:8px 14px; font-weight:600; font-size:13px; color:{sr_color};">{sr_label}</td>{cells}</tr>'
 
                     summary_html += "</tbody></table></div>"
                     st.html(summary_html)
-
-                    # ── 2. Seletor de janela para ranking ──
-                    janela_rank = st.selectbox(
-                        "Ordenar ranking por:", janelas_disp,
-                        index=min(0, len(janelas_disp) - 1),
-                        key="dest_janela"
-                    )
 
                     # Destacar fundos selecionados na carteira
                     sel_cnpjs_set = set(cnpjs_sel)
@@ -2859,13 +2834,14 @@ Equal-weight seria: {_eq_weight:.0f}
                     top_html += f'<th style="padding:8px 10px;color:{TAG_OFFWHITE};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;width:30px;background:{TAG_BG_CARD};">#</th>'
                     top_html += f'<th style="padding:8px 10px;color:{TAG_OFFWHITE};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;background:{TAG_BG_CARD};">Fundo</th>'
 
-                    for jcol in janelas_disp:
+                    for jcol in janelas_disp_ordered:
                         bold = "font-weight:800;" if jcol == janela_rank else ""
-                        top_html += f'<th style="padding:8px 8px;color:{TAG_OFFWHITE};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}background:{TAG_BG_CARD};">{jcol}</th>'
+                        color_h = TAG_LARANJA if jcol == janela_rank else TAG_OFFWHITE
+                        top_html += f'<th style="padding:8px 8px;color:{color_h};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}background:{TAG_BG_CARD};">{jcol}</th>'
                     top_html += '</tr></thead><tbody>'
 
                     # Benchmark rows first (reference — sticky)
-                    top_html += _render_bench_rows(janelas_disp, janela_rank)
+                    top_html += _render_bench_rows(janelas_disp_ordered, janela_rank)
 
                     for rank_i, (cnpj_row, row) in enumerate(topN.iterrows()):
                         is_selected = cnpj_row in sel_cnpjs_set
@@ -2877,7 +2853,7 @@ Equal-weight seria: {_eq_weight:.0f}
                         nome_short = row["nome"][:40] + "…" if len(row["nome"]) > 40 else row["nome"]
                         top_html += f'<td style="padding:6px 10px;font-size:12px;{name_style}white-space:nowrap;">{nome_short}</td>'
 
-                        for jcol in janelas_disp:
+                        for jcol in janelas_disp_ordered:
                             v = df_ret_all.loc[cnpj_row, jcol] if cnpj_row in df_ret_all.index and jcol in df_ret_all.columns else np.nan
                             if pd.isna(v):
                                 top_html += f'<td style="padding:6px 8px;text-align:right;color:{TEXT_MUTED};font-size:11px;">—</td>'
@@ -2900,13 +2876,14 @@ Equal-weight seria: {_eq_weight:.0f}
                     bot_html += f'<thead><tr style="background:{TAG_BG_CARD};border-bottom:1px solid {BORDER_COLOR};position:sticky;top:0;z-index:3;">'
                     bot_html += f'<th style="padding:8px 10px;color:{TAG_OFFWHITE};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;width:30px;background:{TAG_BG_CARD};">#</th>'
                     bot_html += f'<th style="padding:8px 10px;color:{TAG_OFFWHITE};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;background:{TAG_BG_CARD};">Fundo</th>'
-                    for jcol in janelas_disp:
+                    for jcol in janelas_disp_ordered:
                         bold = "font-weight:800;" if jcol == janela_rank else ""
-                        bot_html += f'<th style="padding:8px 8px;color:{TAG_OFFWHITE};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}background:{TAG_BG_CARD};">{jcol}</th>'
+                        color_h = TAG_LARANJA if jcol == janela_rank else TAG_OFFWHITE
+                        bot_html += f'<th style="padding:8px 8px;color:{color_h};font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:0.5px;text-align:right;{bold}background:{TAG_BG_CARD};">{jcol}</th>'
                     bot_html += '</tr></thead><tbody>'
 
                     # Benchmark rows first (reference)
-                    bot_html += _render_bench_rows(janelas_disp, janela_rank)
+                    bot_html += _render_bench_rows(janelas_disp_ordered, janela_rank)
 
                     for rank_i, (cnpj_row, row) in enumerate(botN.iterrows()):
                         is_selected = cnpj_row in sel_cnpjs_set
@@ -2918,7 +2895,7 @@ Equal-weight seria: {_eq_weight:.0f}
                         nome_short = row["nome"][:40] + "…" if len(row["nome"]) > 40 else row["nome"]
                         bot_html += f'<td style="padding:6px 10px;font-size:12px;{name_style}white-space:nowrap;">{nome_short}</td>'
 
-                        for jcol in janelas_disp:
+                        for jcol in janelas_disp_ordered:
                             v = df_ret_all.loc[cnpj_row, jcol] if cnpj_row in df_ret_all.index and jcol in df_ret_all.columns else np.nan
                             if pd.isna(v):
                                 bot_html += f'<td style="padding:6px 8px;text-align:right;color:{TEXT_MUTED};font-size:11px;">—</td>'
@@ -3336,11 +3313,13 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
         "TB ATMOS FC FIA",
     ]
 
-    # Fundos TAG com posições diretas em ações (custódia Mellon — sem PDF BTG)
+    # Fundos TAG com posições diretas (custódia Mellon — sem PDF BTG)
     # CNPJ → nome display
-    _SYNTA_DIRETOS = {
+    _MELLON_DIRETOS = {
         "20214858000166": "SYNTA FIA",
         "51564188000131": "SYNTA FIA II",
+        "19418925000185": "MARIA SILVIA FIA IE",
+        "41054683000147": "SYNTA MULTIM IE",
     }
 
     col_data, col_fundos_pdf = st.columns([1, 3])
@@ -3361,12 +3340,12 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
             df_all_portfolios[df_all_portfolios["data_pdf"] == data_sel]["fundo_tag"].unique()
         )
 
-    # Adicionar fundos SYNTA (posições diretas via XML Mellon, sem PDF BTG)
-    for _cnpj_synta, _nome_synta in _SYNTA_DIRETOS.items():
-        if _nome_synta not in fundos_rv_pdf:
+    # Adicionar fundos Mellon (posições diretas via XML, sem PDF BTG)
+    for _cnpj_mellon, _nome_mellon in _MELLON_DIRETOS.items():
+        if _nome_mellon not in fundos_rv_pdf:
             # Verificar se temos dados XML para este fundo
-            if not df_posicoes.empty and _cnpj_synta in df_posicoes["cnpj_fundo"].values:
-                fundos_rv_pdf.append(_nome_synta)
+            if not df_posicoes.empty and _cnpj_mellon in df_posicoes["cnpj_fundo"].values:
+                fundos_rv_pdf.append(_nome_mellon)
 
     with col_fundos_pdf:
         fundos_sel_pdf = st.multiselect(
@@ -3391,23 +3370,23 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
     for nome_fundo_tag in fundos_sel_pdf:
         st.markdown(f"### 💥 {nome_fundo_tag}")
 
-        # Detectar se é fundo SYNTA (posições XML diretas, sem PDF BTG)
-        _synta_cnpj = None
-        for _sc, _sn in _SYNTA_DIRETOS.items():
+        # Detectar se é fundo Mellon (posições XML diretas, sem PDF BTG)
+        _mellon_cnpj = None
+        for _sc, _sn in _MELLON_DIRETOS.items():
             if _sn == nome_fundo_tag:
-                _synta_cnpj = _sc
+                _mellon_cnpj = _sc
                 break
 
-        if _synta_cnpj:
-            # SYNTA: carregar posições diretamente dos XMLs (posicoes_consolidado)
+        if _mellon_cnpj:
+            # Mellon: carregar posições diretamente dos XMLs (posicoes_consolidado)
             df_portfolio = pd.DataFrame(columns=["cnpj", "nome_portfolio", "quantidade", "quota",
                                                    "financeiro", "pct_pl", "ganho_diario", "cnpj_norm"])
             resumo = {}
             # Buscar snapshot mais recente do fundo
-            _df_synta = df_posicoes[df_posicoes["cnpj_fundo"] == _synta_cnpj].copy()
-            if not _df_synta.empty:
-                _data_max = _df_synta["data"].max()
-                _snap = _df_synta[_df_synta["data"] == _data_max]
+            _df_mellon = df_posicoes[df_posicoes["cnpj_fundo"] == _mellon_cnpj].copy()
+            if not _df_mellon.empty:
+                _data_max = _df_mellon["data"].max()
+                _snap = _df_mellon[_df_mellon["data"] == _data_max]
                 _pl = _snap["pl"].iloc[0] if "pl" in _snap.columns and not _snap["pl"].isna().all() else 0
                 resumo = {"patrimonio": _pl, "data": str(_data_max.date())}
                 # Converter para formato df_acoes_dir (compatível com seção "Ações")
@@ -3472,7 +3451,7 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
             st.markdown(metric_card("% PL Total", f"{total_pct:.1f}%"), unsafe_allow_html=True)
 
         # ── Tabela Nível 1: Fundos investidos + Ações diretas ──
-        if _synta_cnpj:
+        if _mellon_cnpj:
             _title_lv1 = "Posições em Ações (XML Mellon)"
         elif n_acoes_dir > 0:
             _title_lv1 = "Fundos Investidos + Ações Diretas (PDF BTG)"

@@ -62,21 +62,41 @@ def _normalizar_cnpj(cnpj: str) -> str:
 
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Fundos adicionais (custódia Mellon — não estão na Base Geral)
+# Fundos TAG adicionais (custódia Mellon — não estão na Base Geral)
 # ──────────────────────────────────────────────────────────────────────────────
-_SYNTA_FUNDOS = [
+_MELLON_FUNDOS = [
+    # ── FIAs (posições diretas em ações) ──
     {"nome": "SYNTA FIF AÇÕES RESP LTDA", "cnpj": "20.214.858/0001-66",
-     "categoria": "RV Valor/Retorno Absoluto", "tier": 1, "master": None,
+     "categoria": "Fundos TAG", "tier": 1, "master": None,
      "cnpj_foco": None, "enquadramento": None, "geri": "TAG INVESTIMENTOS"},
     {"nome": "SYNTA FIF EM ACOES II RESP LTDA", "cnpj": "51.564.188/0001-31",
-     "categoria": "RV Valor/Retorno Absoluto", "tier": 1, "master": None,
+     "categoria": "Fundos TAG", "tier": 1, "master": None,
      "cnpj_foco": None, "enquadramento": None, "geri": "VINCI"},
+    {"nome": "MARIA SILVIA FIF AÇÕES IE RESP LTDA", "cnpj": "19.418.925/0001-85",
+     "categoria": "Fundos TAG", "tier": 1, "master": None,
+     "cnpj_foco": None, "enquadramento": None, "geri": "TAG INVESTIMENTOS"},
+    {"nome": "SYNTA FIF MULTIM IE RESP LTDA", "cnpj": "41.054.683/0001-47",
+     "categoria": "Fundos TAG", "tier": 1, "master": None,
+     "cnpj_foco": None, "enquadramento": None, "geri": "TAG INVESTIMENTOS"},
+    # ── Multimercado / RF (sem ações diretas) ──
+    {"nome": "SYNTA FIC FIF MULTI RESP LTDA", "cnpj": "09.521.007/0001-23",
+     "categoria": "Fundos TAG", "tier": 1, "master": None,
+     "cnpj_foco": None, "enquadramento": None, "geri": "TAG INVESTIMENTOS"},
+    {"nome": "SYNTA PASSIVO FIF RF RESP LTDA", "cnpj": "32.225.875/0001-88",
+     "categoria": "Fundos TAG", "tier": 1, "master": None,
+     "cnpj_foco": None, "enquadramento": None, "geri": "TAG INVESTIMENTOS"},
+    {"nome": "SYNTA AZ QUEST FIF RF CP RESP LTDA", "cnpj": "19.091.575/0001-95",
+     "categoria": "Fundos TAG", "tier": 1, "master": None,
+     "cnpj_foco": None, "enquadramento": None, "geri": "AZ QUEST"},
+    {"nome": "MARIA SILVIA FIF MULT CRED PRIV IE RESP LTDA", "cnpj": "53.026.176/0001-89",
+     "categoria": "Fundos TAG", "tier": 1, "master": None,
+     "cnpj_foco": None, "enquadramento": None, "geri": "TAG INVESTIMENTOS"},
 ]
 
 
-def _append_synta_fundos(df: pd.DataFrame) -> pd.DataFrame:
-    """Adiciona fundos SYNTA (Mellon) ao DataFrame se não presentes."""
-    for sf in _SYNTA_FUNDOS:
+def _append_mellon_fundos(df: pd.DataFrame) -> pd.DataFrame:
+    """Adiciona fundos Mellon (TAG) ao DataFrame se não presentes."""
+    for sf in _MELLON_FUNDOS:
         cnpj_n = _normalizar_cnpj(sf["cnpj"])
         if cnpj_n not in df["cnpj_norm"].values:
             row = {**sf, "cnpj_norm": cnpj_n, "cnpj_foco_norm": ""}
@@ -95,7 +115,7 @@ def carregar_fundos_rv() -> pd.DataFrame:
     if CLOUD_MODE or not os.path.exists(BASE_GERAL_PATH):
         if os.path.exists(parquet_path):
             df = pd.read_parquet(parquet_path)
-            return _append_synta_fundos(df)
+            return _append_mellon_fundos(df)
         raise FileNotFoundError("Nenhuma fonte de dados de fundos disponível. Execute export_data.py localmente.")
 
     # Modo local: ler do Excel
@@ -120,7 +140,7 @@ def carregar_fundos_rv() -> pd.DataFrame:
     df = pd.DataFrame(fundos)
     df["cnpj_norm"] = df["cnpj"].apply(_normalizar_cnpj)
     df["cnpj_foco_norm"] = df["cnpj_foco"].apply(_normalizar_cnpj)
-    return _append_synta_fundos(df)
+    return _append_mellon_fundos(df)
 
 
 # ──────────────────────────────────────────────────────────────────────────────
