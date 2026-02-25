@@ -180,7 +180,38 @@ def _parse_xml_old(filepath: str) -> dict | None:
             cod = acao.findtext("codativo", "")
             valor = float(acao.findtext("valorfindisp", "0") or "0")
             if cod and valor > 0:
-                acoes.append({"ativo": cod.strip().upper(), "valor": valor})
+                acoes.append({"ativo": cod.strip().upper(), "valor": valor, "tipo": "acao"})
+
+        # Cotas de fundos investidos (qtd * pu quando valorfindisp=0)
+        for cota in fundo.findall("cotas"):
+            cnpj_fundo_inv = cota.findtext("cnpjfundo", "")
+            isin = cota.findtext("isin", "")
+            valorfindisp = float(cota.findtext("valorfindisp", "0") or "0")
+            qtd = float(cota.findtext("qtdisponivel", "0") or "0")
+            pu = float(cota.findtext("puposicao", "0") or "0")
+            valor = valorfindisp if valorfindisp > 0 else qtd * pu
+            if valor > 0:
+                nome = f"FUNDO {cnpj_fundo_inv}" if cnpj_fundo_inv else isin
+                acoes.append({"ativo": nome, "valor": valor, "tipo": "cota",
+                              "cnpj_investido": cnpj_fundo_inv, "isin": isin})
+
+        # Títulos públicos
+        for tp in fundo.findall("titpublico"):
+            cod = tp.findtext("codativo", "")
+            isin = tp.findtext("isin", "")
+            venc = tp.findtext("dtvencimento", "")
+            valor = float(tp.findtext("valorfindisp", "0") or "0")
+            if valor > 0:
+                nome = f"TITPUB {isin}" if isin else f"TITPUB {cod}"
+                if venc:
+                    nome += f" ({venc[:4]})"
+                acoes.append({"ativo": nome, "valor": valor, "tipo": "titpublico"})
+
+        # Caixa
+        for cx in fundo.findall("caixa"):
+            saldo = float(cx.findtext("saldo", "0") or "0")
+            if saldo > 0:
+                acoes.append({"ativo": "CAIXA", "valor": saldo, "tipo": "caixa"})
 
         return {"cnpj": cnpj, "data": dt, "pl": pl, "acoes": acoes}
     except Exception:

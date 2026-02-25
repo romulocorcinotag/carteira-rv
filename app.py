@@ -3379,27 +3379,58 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
 
         if _mellon_cnpj:
             # Mellon: carregar posições diretamente dos XMLs (posicoes_consolidado)
-            df_portfolio = pd.DataFrame(columns=["cnpj", "nome_portfolio", "quantidade", "quota",
-                                                   "financeiro", "pct_pl", "ganho_diario", "cnpj_norm"])
             resumo = {}
-            # Buscar snapshot mais recente do fundo
             _df_mellon = df_posicoes[df_posicoes["cnpj_fundo"] == _mellon_cnpj].copy()
             if not _df_mellon.empty:
                 _data_max = _df_mellon["data"].max()
                 _snap = _df_mellon[_df_mellon["data"] == _data_max]
                 _pl = _snap["pl"].iloc[0] if "pl" in _snap.columns and not _snap["pl"].isna().all() else 0
                 resumo = {"patrimonio": _pl, "data": str(_data_max.date())}
-                # Converter para formato df_acoes_dir (compatível com seção "Ações")
-                df_acoes_dir = pd.DataFrame({
-                    "ticker": _snap["ativo"].values,
-                    "pct_pl": _snap["pct_pl"].values,
-                    "financeiro": _snap["valor"].values if "valor" in _snap.columns else 0,
-                    "quantidade": 0,
-                    "cotacao": 0,
-                    "ganho_diario": 0,
-                    "var_dia": 0,
-                })
+
+                # Separar por tipo de ativo
+                _is_cota = _snap["ativo"].str.startswith("FUNDO ")
+                _is_rf = _snap["ativo"].str.startswith("TITPUB ") | (_snap["ativo"] == "CAIXA")
+                _is_acao = ~_is_cota & ~_is_rf
+
+                # Cotas de fundos → df_portfolio
+                _snap_cotas = _snap[_is_cota]
+                if not _snap_cotas.empty:
+                    df_portfolio = pd.DataFrame({
+                        "cnpj": _snap_cotas["ativo"].str.replace("FUNDO ", "", regex=False).values,
+                        "nome_portfolio": _snap_cotas["ativo"].values,
+                        "quantidade": 0,
+                        "quota": 0,
+                        "financeiro": _snap_cotas["valor"].values,
+                        "pct_pl": _snap_cotas["pct_pl"].values,
+                        "ganho_diario": 0,
+                    })
+                    df_portfolio["cnpj_norm"] = df_portfolio["cnpj"]
+                    # Resolver nomes dos fundos investidos pelo CNPJ
+                    _cnpj_nome_map = dict(zip(df_fundos["cnpj_norm"], df_fundos["nome"]))
+                    df_portfolio["nome_portfolio"] = df_portfolio["cnpj"].map(
+                        lambda c: _cnpj_nome_map.get(c, f"Fundo {c[:8]}…")
+                    )
+                else:
+                    df_portfolio = pd.DataFrame(columns=["cnpj", "nome_portfolio", "quantidade", "quota",
+                                                          "financeiro", "pct_pl", "ganho_diario", "cnpj_norm"])
+
+                # Ações diretas + RF → df_acoes_dir (todas as posições não-cota)
+                _snap_diretos = _snap[_is_acao | _is_rf]
+                if not _snap_diretos.empty:
+                    df_acoes_dir = pd.DataFrame({
+                        "ticker": _snap_diretos["ativo"].values,
+                        "pct_pl": _snap_diretos["pct_pl"].values,
+                        "financeiro": _snap_diretos["valor"].values if "valor" in _snap_diretos.columns else 0,
+                        "quantidade": 0,
+                        "cotacao": 0,
+                        "ganho_diario": 0,
+                        "var_dia": 0,
+                    })
+                else:
+                    df_acoes_dir = pd.DataFrame()
             else:
+                df_portfolio = pd.DataFrame(columns=["cnpj", "nome_portfolio", "quantidade", "quota",
+                                                      "financeiro", "pct_pl", "ganho_diario", "cnpj_norm"])
                 df_acoes_dir = pd.DataFrame()
 
         # Resumo, portfolio e ações diretas — PDF local ou parquet cloud
@@ -3445,14 +3476,14 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
         with _summary_cols[1]:
             st.markdown(metric_card("Fundos Investidos", str(n_fundos)), unsafe_allow_html=True)
         with _summary_cols[2]:
-            _lbl_acoes_dir = f"Ações Diretas"
+            _lbl_acoes_dir = "Posições Diretas" if _mellon_cnpj else "Ações Diretas"
             st.markdown(metric_card(_lbl_acoes_dir, str(n_acoes_dir)), unsafe_allow_html=True)
         with _summary_cols[3]:
             st.markdown(metric_card("% PL Total", f"{total_pct:.1f}%"), unsafe_allow_html=True)
 
         # ── Tabela Nível 1: Fundos investidos + Ações diretas ──
         if _mellon_cnpj:
-            _title_lv1 = "Posições em Ações (XML Mellon)"
+            _title_lv1 = "Composição do Portfólio (XML Mellon)"
         elif n_acoes_dir > 0:
             _title_lv1 = "Fundos Investidos + Ações Diretas (PDF BTG)"
         else:

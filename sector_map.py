@@ -98,4 +98,13 @@ SETOR_MAP = {
 
 def classificar_setor(ticker: str) -> str:
     """Retorna o setor de um ticker. Fallback: 'Outros'."""
-    return SETOR_MAP.get(ticker.strip().upper(), 'Outros')
+    t = ticker.strip().upper()
+    if t in SETOR_MAP:
+        return SETOR_MAP[t]
+    if t.startswith("FUNDO "):
+        return "Cotas de Fundos"
+    if t.startswith("TITPUB "):
+        return "Renda Fixa"
+    if t == "CAIXA":
+        return "Caixa"
+    return "Outros"
