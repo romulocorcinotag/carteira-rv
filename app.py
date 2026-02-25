@@ -10,6 +10,7 @@ from data_loader import (
     carregar_todos_dados, carregar_fundos_rv,
     carregar_cotas_fundos, carregar_universo_stats,
     carregar_fundamentals_explosao, BENCHMARK_CNPJS,
+    buscar_carteiras_cvm_sob_demanda,
 )
 from sector_map import classificar_setor
 import pdf_parser
@@ -2229,7 +2230,40 @@ Equal-weight seria: {_eq_weight:.0f}
 
                     # ─── G8: Tabela de Métricas Completa (expandida) ───
                     st.markdown('<div class="tag-section-title">Metricas de Performance e Gestao</div>', unsafe_allow_html=True)
-                    st.caption("Sortino = retorno exc./vol. queda | Treynor = retorno exc./beta | M² = retorno ajustado ao risco do mercado | Omega = ganhos/perdas vs CDI | VaR/CVaR = risco de cauda 95% | Recup.DD = dias para recuperar do pior drawdown | Consist. = % janelas 12M que bateu IBOV")
+                    with st.expander("Legenda das Metricas", expanded=False):
+                        st.markdown(f"""
+<div style="font-size:12px; line-height:1.7; color:{TEXT_COLOR}; font-family:Tahoma,sans-serif;">
+
+**Retorno e Volatilidade**
+- **Ret.Acum** — Retorno acumulado no periodo selecionado (%).
+- **Ret.Anual** — Retorno anualizado (composto para 252 dias uteis).
+- **Vol.Anual** — Volatilidade anualizada (desvio-padrao dos retornos diarios x raiz de 252). Quanto maior, mais arriscado.
+
+**Indicadores de Risco-Retorno**
+- **Sharpe** — (Retorno anual - CDI) / Volatilidade. Mede o retorno excedente por unidade de risco total. Acima de 1 e bom, acima de 2 e excelente.
+- **Sortino** — (Retorno anual - CDI) / Volatilidade de queda. Igual ao Sharpe mas penaliza apenas a volatilidade negativa (downside). Melhor para fundos assimetricos.
+- **Treynor** — (Retorno anual - CDI) / Beta. Retorno excedente por unidade de risco sistematico (mercado).
+- **M2 (Modigliani)** — Retorno que o fundo teria se sua volatilidade fosse igual a do IBOV. Permite comparar fundos com volatilidades diferentes (em %).
+- **Omega** — Soma dos ganhos / Soma das perdas (vs CDI diario). Acima de 1 significa mais ganhos que perdas. Quanto maior, melhor.
+- **Calmar** — Retorno anualizado / |Max Drawdown|. Retorno por unidade de pior queda. Quanto maior, melhor.
+
+**Risco de Cauda (Drawdown e VaR)**
+- **Max DD** — Maior queda (%) do pico ao vale no periodo. Mede o pior cenario de perda.
+- **Recup.DD** — Dias uteis que o fundo levou para recuperar do pior drawdown.
+- **VaR 95%** — Value at Risk: perda maxima diaria esperada com 95% de confianca. Ex: -1.5% significa que em 95% dos dias a perda nao ultrapassa 1.5%.
+- **CVaR** — Conditional VaR (Expected Shortfall): perda media nos 5% piores dias. Mais conservador que o VaR.
+- **Ulcer** — Ulcer Index: raiz da media dos drawdowns ao quadrado ao longo do tempo. Diferente da volatilidade, captura apenas os periodos de queda.
+- **UPI vs IBOV** — Ulcer Performance Index: (Retorno excedente sobre IBOV) / Ulcer Index. Mede retorno ajustado pelo risco de drawdown.
+
+**Metricas vs Benchmark (IBOV)**
+- **Beta** — Sensibilidade ao mercado. Beta=1 acompanha o IBOV; menor que 1 e mais defensivo; maior que 1 e mais agressivo.
+- **IR** — Information Ratio: retorno ativo anualizado / tracking error. Mede a habilidade do gestor em gerar alpha consistente. Acima de 0.5 e bom.
+- **Hit%** — Percentual de meses em que o fundo superou o IBOV.
+- **Consist.** — Percentual de janelas rolantes de 12 meses em que o fundo superou o IBOV. Mede consistencia de longo prazo.
+- **Up Cap** — Upside Capture: percentual do retorno do IBOV capturado nos meses de alta. Acima de 100% = ganha mais que o mercado nas altas.
+- **Dn Cap** — Downside Capture: percentual do retorno do IBOV capturado nos meses de queda. Abaixo de 100% = perde menos que o mercado nas quedas.
+</div>
+""", unsafe_allow_html=True)
 
                     metrics_rows = []
                     for cnpj in all_cols:
@@ -3537,8 +3571,30 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
             "30366098000166": "SCAR3",   # REGILO FIA → 100% São Carlos ON
         }
 
+        # Pré-busca CVM sob demanda: fundos sem dados no universo
+        _cnpjs_sem_dados = set()
+        for _, _rp in df_portfolio.iterrows():
+            _cn = _rp.get("cnpj_norm", "")
+            if not _cn or _cn in _MONO_ATIVO_MAP:
+                continue
+            _cb = foco_to_direto.get(_cn, _cn)
+            if _cb not in cnpjs_com_dados and _cn not in cnpjs_com_dados:
+                _cnpjs_sem_dados.add(_cn)
+
+        _df_cvm_extra = pd.DataFrame()
+        if _cnpjs_sem_dados:
+            _df_cvm_extra = buscar_carteiras_cvm_sob_demanda(
+                tuple(_cnpjs_sem_dados), meses_max=6)
+
+        if not _df_cvm_extra.empty:
+            df_posicoes_exp = pd.concat([df_posicoes, _df_cvm_extra], ignore_index=True)
+            cnpjs_com_dados_exp = set(df_posicoes_exp["cnpj_fundo"].unique())
+        else:
+            df_posicoes_exp = df_posicoes
+            cnpjs_com_dados_exp = cnpjs_com_dados
+
         df_portfolio["tem_dados"] = df_portfolio["cnpj_norm"].apply(
-            lambda cnpj: "✅" if (cnpj in cnpjs_com_dados or foco_to_direto.get(cnpj, cnpj) in cnpjs_com_dados or cnpj in _MONO_ATIVO_MAP) else ("⚠️" if cnpj == "" else "❌")
+            lambda cnpj: "✅" if (cnpj in cnpjs_com_dados_exp or foco_to_direto.get(cnpj, cnpj) in cnpjs_com_dados_exp or cnpj in _MONO_ATIVO_MAP) else ("⚠️" if cnpj == "" else "❌")
         )
 
         # Montar tabela unificada: fundos + ações diretas
@@ -3581,7 +3637,14 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
             )
 
         # ── Explosão: Cruzar com dados XML/CVM + Ações Diretas + ETFs ──
-        st.markdown(f'<div class="tag-section-title">Exposição a Ações (Explosão)</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="tag-section-title">Exposição Completa (Explosão)</div>', unsafe_allow_html=True)
+
+        if not _df_cvm_extra.empty:
+            _cvm_extra_cnpjs = set(_df_cvm_extra["cnpj_fundo"].unique())
+            st.caption(
+                f"📡 Carteira CVM obtida sob demanda para "
+                f"{len(_cvm_extra_cnpjs)}/{len(_cnpjs_sem_dados)} fundo(s) "
+                f"sem dados XML/CVM no universo")
 
         exposicoes = []
         fundos_identificados = 0
@@ -3613,13 +3676,22 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
             # Resolver mapeamento master/foco → direto
             cnpj_busca = foco_to_direto.get(cnpj_fundo_investido, cnpj_fundo_investido)
 
-            # Buscar posições mais recentes desse fundo
-            df_fundo_pos = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_busca].copy()
+            # Buscar posições mais recentes desse fundo (incluindo CVM extra)
+            df_fundo_pos = df_posicoes_exp[df_posicoes_exp["cnpj_fundo"] == cnpj_busca].copy()
             if df_fundo_pos.empty:
                 # Tentar com CNPJ original
-                df_fundo_pos = df_posicoes[df_posicoes["cnpj_fundo"] == cnpj_fundo_investido].copy()
+                df_fundo_pos = df_posicoes_exp[df_posicoes_exp["cnpj_fundo"] == cnpj_fundo_investido].copy()
 
             if df_fundo_pos.empty:
+                # Sem dados CVM/XML → incluir como "não explodido" (100% do peso)
+                exposicoes.append({
+                    "ativo": f"[Sem dados] {nome_fundo_investido[:30]}",
+                    "setor": "Sem Dados CVM",
+                    "fundo_origem": nome_fundo_investido,
+                    "peso_fundo_pct": row_pdf["pct_pl"],
+                    "peso_no_fundo_pct": 100.0,
+                    "exposicao_pct": peso_fundo * 100.0,
+                })
                 continue
 
             fundos_identificados += 1
@@ -3690,7 +3762,7 @@ def _render_explosao(df_fundos: pd.DataFrame, df_posicoes: pd.DataFrame):
 
         # Card: % identificado (fundos com dados + ações diretas + ETFs explodidos)
         pct_identificado_fundos = df_portfolio[df_portfolio["cnpj_norm"].apply(
-            lambda c: c in cnpjs_com_dados or foco_to_direto.get(c, c) in cnpjs_com_dados or c in _MONO_ATIVO_MAP
+            lambda c: c in cnpjs_com_dados_exp or foco_to_direto.get(c, c) in cnpjs_com_dados_exp or c in _MONO_ATIVO_MAP
         )]["pct_pl"].sum() if not df_portfolio.empty else 0
         pct_identificado_direto = total_pct_acoes  # ações diretas são 100% identificadas
         pct_identificado = pct_identificado_fundos + pct_identificado_direto

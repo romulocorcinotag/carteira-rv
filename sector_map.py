@@ -105,6 +105,12 @@ def classificar_setor(ticker: str) -> str:
         return "Cotas de Fundos"
     if t.startswith("TITPUB "):
         return "Renda Fixa"
-    if t == "CAIXA":
+    if t.startswith("DEP ") or t.startswith("DEB ") or t.startswith("RF "):
+        return "Renda Fixa"
+    if t.startswith("DERIV "):
+        return "Derivativos"
+    if t.startswith("[SEM DADOS]"):
+        return "Sem Dados CVM"
+    if t == "CAIXA" or t == "OUTROS RF/CAIXA":
         return "Caixa"
     return "Outros"

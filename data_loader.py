@@ -571,6 +571,329 @@ def _download_cvm_pl(yyyymm: str) -> pd.DataFrame | None:
         return None
 
 
+def _download_cvm_blc(blc_num: int, yyyymm: str) -> pd.DataFrame | None:
+    """Baixa e cacheia um mês de dados CVM BLC_{blc_num} (genérico)."""
+    if blc_num == 4:
+        return _download_cvm_blc4(yyyymm)
+
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    cache_path = os.path.join(CACHE_DIR, f"cvm_blc{blc_num}_{yyyymm}.parquet")
+
+    if os.path.exists(cache_path):
+        age_hours = (datetime.now() - datetime.fromtimestamp(
+            os.path.getmtime(cache_path))).total_seconds() / 3600
+        today = datetime.now()
+        ref_date = datetime(int(yyyymm[:4]), int(yyyymm[4:6]), 1)
+        months_old = (today.year - ref_date.year) * 12 + today.month - ref_date.month
+        if months_old > 3 or age_hours < 24:
+            try:
+                return pd.read_parquet(cache_path)
+            except Exception:
+                pass
+
+    blc_tag = f"BLC_{blc_num}"
+    df = None
+    # Tentar ZIP individual (menor) primeiro, depois combinado
+    for url in [
+        f"https://dados.cvm.gov.br/dados/FI/DOC/CDA/DADOS/cda_fi_BLC_{blc_num}_{yyyymm}.zip",
+        CVM_ZIP_URL.format(yyyymm=yyyymm),
+    ]:
+        try:
+            resp = requests.get(url, timeout=180)
+            if resp.status_code != 200:
+                continue
+            with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+                csv_names = [n for n in zf.namelist()
+                             if blc_tag in n and n.endswith(".csv")]
+                if not csv_names:
+                    continue
+                with zf.open(csv_names[0]) as csvfile:
+                    df = pd.read_csv(csvfile, sep=";", encoding="latin-1",
+                                     low_memory=False)
+            break
+        except Exception:
+            continue
+
+    if df is None:
+        return None
+    df.to_parquet(cache_path, index=False)
+    return df
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Busca sob demanda de carteiras CVM (para explosão de fundos investidos)
+# ──────────────────────────────────────────────────────────────────────────────
+_COLS_POSICOES = ["cnpj_fundo", "data", "ativo", "valor", "pl", "pct_pl", "setor", "fonte"]
+
+
+def _processar_blc4_cnpjs(df_blc4: pd.DataFrame, cnpjs: set) -> pd.DataFrame:
+    """Extrai TODAS as posições do BLC_4 (demais ativos) para CNPJs específicos.
+
+    BLC_4 contém: ações, BDRs, ETFs, opções, warrants, recebíveis, etc.
+    Captura TUDO para permitir explosão 100%.
+    """
+    cnpj_col = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df_blc4.columns else "CNPJ_FUNDO"
+    if cnpj_col not in df_blc4.columns or "VL_MERC_POS_FINAL" not in df_blc4.columns:
+        return pd.DataFrame()
+
+    df = df_blc4.copy()
+    df["cnpj_fundo"] = df[cnpj_col].apply(_normalizar_cnpj)
+    df = df[df["cnpj_fundo"].isin(cnpjs)].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    df = df[df["VL_MERC_POS_FINAL"] > 0].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    # Classificar cada posição pelo TP_APLIC
+    tp_col = "TP_APLIC" if "TP_APLIC" in df.columns else None
+    cd_col = "CD_ATIVO" if "CD_ATIVO" in df.columns else None
+    ds_col = "DS_ATIVO" if "DS_ATIVO" in df.columns else None
+
+    def _make_ativo_setor(row):
+        tp = str(row[tp_col]).strip() if tp_col and pd.notna(row.get(tp_col)) else ""
+        cd = str(row[cd_col]).strip().upper() if cd_col and pd.notna(row.get(cd_col)) else ""
+        ds = str(row[ds_col]).strip() if ds_col and pd.notna(row.get(ds_col)) else ""
+
+        is_stock = bool(re.search(
+            r"A.{1,3}es|Brazilian Depository|Certificado|Units", tp, re.IGNORECASE))
+        if is_stock and cd and len(cd) >= 4:
+            return cd, classificar_setor(cd)
+        if re.search(r"Op..es|Termo|Futuro|Swap", tp, re.IGNORECASE):
+            return (f"DERIV {cd}" if cd else f"DERIV {ds[:20]}"), "Derivativos"
+        if cd and len(cd) >= 4:
+            return cd, classificar_setor(cd)
+        return (f"OUTROS {ds[:25]}" if ds else f"OUTROS {tp[:20]}"), "Outros"
+
+    result = df.apply(_make_ativo_setor, axis=1, result_type="expand")
+    df["ativo"] = result[0]
+    df["setor"] = result[1]
+    return df[["cnpj_fundo", "DT_COMPTC", "ativo", "VL_MERC_POS_FINAL", "setor"]].rename(
+        columns={"DT_COMPTC": "data", "VL_MERC_POS_FINAL": "valor"})
+
+
+def _processar_blc_generico_cnpjs(df_blc: pd.DataFrame, cnpjs: set,
+                                   setor_default: str, prefix: str) -> pd.DataFrame:
+    """Processa BLC genérico (5=depósitos, 6=debêntures, 7=agro, 8=exterior)."""
+    cnpj_col = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df_blc.columns else "CNPJ_FUNDO"
+    if cnpj_col not in df_blc.columns or "VL_MERC_POS_FINAL" not in df_blc.columns:
+        return pd.DataFrame()
+
+    df = df_blc.copy()
+    df["cnpj_fundo"] = df[cnpj_col].apply(_normalizar_cnpj)
+    df = df[df["cnpj_fundo"].isin(cnpjs)].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    df = df[df["VL_MERC_POS_FINAL"] > 0].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    cd_col = "CD_ATIVO" if "CD_ATIVO" in df.columns else None
+    ds_col = "DS_ATIVO" if "DS_ATIVO" in df.columns else None
+
+    def _make_ativo(row):
+        cd = str(row[cd_col]).strip() if cd_col and pd.notna(row.get(cd_col)) else ""
+        ds = str(row[ds_col]).strip()[:25] if ds_col and pd.notna(row.get(ds_col)) else ""
+        return f"{prefix} {cd}" if cd else (f"{prefix} {ds}" if ds else prefix)
+
+    df["ativo"] = df.apply(_make_ativo, axis=1)
+    df["setor"] = setor_default
+    return df[["cnpj_fundo", "DT_COMPTC", "ativo", "VL_MERC_POS_FINAL", "setor"]].rename(
+        columns={"DT_COMPTC": "data", "VL_MERC_POS_FINAL": "valor"})
+
+
+def _processar_blc2_cnpjs(df_blc2: pd.DataFrame, cnpjs: set) -> pd.DataFrame:
+    """Extrai cotas de fundos investidos (BLC_2) para CNPJs específicos."""
+    cnpj_col = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df_blc2.columns else "CNPJ_FUNDO"
+    if cnpj_col not in df_blc2.columns or "VL_MERC_POS_FINAL" not in df_blc2.columns:
+        return pd.DataFrame()
+
+    df = df_blc2.copy()
+    df["cnpj_fundo"] = df[cnpj_col].apply(_normalizar_cnpj)
+    df = df[df["cnpj_fundo"].isin(cnpjs)].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    df = df[df["VL_MERC_POS_FINAL"] > 0].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    # CNPJ do fundo investido
+    cnpj_cota_col = None
+    for col in ["CNPJ_FUNDO_COTA", "CNPJ_FUNDO_INVEST"]:
+        if col in df.columns:
+            cnpj_cota_col = col
+            break
+
+    nm_col = "NM_FUNDO_COTA" if "NM_FUNDO_COTA" in df.columns else None
+
+    def _make_ativo(row):
+        if cnpj_cota_col and pd.notna(row.get(cnpj_cota_col)):
+            cnpj_inv = _normalizar_cnpj(str(row[cnpj_cota_col]))
+            if cnpj_inv and len(cnpj_inv) == 14 and cnpj_inv != row["cnpj_fundo"]:
+                return f"FUNDO {cnpj_inv}"
+        if nm_col and pd.notna(row.get(nm_col)):
+            return f"FUNDO {str(row[nm_col]).strip()[:40]}"
+        return "FUNDO DESCONHECIDO"
+
+    df["ativo"] = df.apply(_make_ativo, axis=1)
+    df["setor"] = "Cotas de Fundos"
+    return df[["cnpj_fundo", "DT_COMPTC", "ativo", "VL_MERC_POS_FINAL", "setor"]].rename(
+        columns={"DT_COMPTC": "data", "VL_MERC_POS_FINAL": "valor"})
+
+
+def _processar_blc1_cnpjs(df_blc1: pd.DataFrame, cnpjs: set) -> pd.DataFrame:
+    """Extrai títulos públicos (BLC_1) para CNPJs específicos."""
+    cnpj_col = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df_blc1.columns else "CNPJ_FUNDO"
+    if cnpj_col not in df_blc1.columns or "VL_MERC_POS_FINAL" not in df_blc1.columns:
+        return pd.DataFrame()
+
+    df = df_blc1.copy()
+    df["cnpj_fundo"] = df[cnpj_col].apply(_normalizar_cnpj)
+    df = df[df["cnpj_fundo"].isin(cnpjs)].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    df = df[df["VL_MERC_POS_FINAL"] > 0].copy()
+    if df.empty:
+        return pd.DataFrame()
+
+    cod_col = "CD_ATIVO" if "CD_ATIVO" in df.columns else ("CD_SELIC" if "CD_SELIC" in df.columns else None)
+    ds_col = "DS_ATIVO" if "DS_ATIVO" in df.columns else None
+
+    def _make_ativo(row):
+        cod = str(row[cod_col]).strip() if cod_col and pd.notna(row.get(cod_col)) else ""
+        ds = str(row[ds_col]).strip()[:25] if ds_col and pd.notna(row.get(ds_col)) else ""
+        return f"TITPUB {cod}" if cod else (f"TITPUB {ds}" if ds else "TITPUB")
+
+    df["ativo"] = df.apply(_make_ativo, axis=1)
+    df["setor"] = "Renda Fixa"
+    return df[["cnpj_fundo", "DT_COMPTC", "ativo", "VL_MERC_POS_FINAL", "setor"]].rename(
+        columns={"DT_COMPTC": "data", "VL_MERC_POS_FINAL": "valor"})
+
+
+@st.cache_data(ttl=3600, show_spinner="Buscando carteiras CVM dos fundos investidos...")
+def buscar_carteiras_cvm_sob_demanda(cnpjs_alvo: tuple, meses_max: int = 6) -> pd.DataFrame:
+    """Busca carteira completa de fundos via CVM (BLC_4 + BLC_2 + BLC_1).
+
+    Para fundos investidos que não estão no universo de acompanhamento.
+    Retorna DataFrame no formato df_posicoes.
+
+    BLC_4 = ações/BDRs/ETFs/demais ativos
+    BLC_2 = cotas de fundos investidos
+    BLC_1 = títulos públicos
+    BLC_5 = depósitos a prazo
+    BLC_6 = debêntures
+    O restante é calculado como 'Outros RF/Caixa'.
+    """
+    cnpjs_set = {_normalizar_cnpj(c) for c in cnpjs_alvo if c}
+    cnpjs_set.discard("")
+    if not cnpjs_set:
+        return pd.DataFrame(columns=_COLS_POSICOES)
+
+    today = datetime.now()
+    all_dfs = []
+    cnpjs_encontrados = set()
+
+    for i in range(0, meses_max):
+        d = today - timedelta(days=30 * i)
+        ym = d.strftime("%Y%m")
+        cnpjs_pendentes = cnpjs_set - cnpjs_encontrados
+        if not cnpjs_pendentes:
+            break
+
+        month_dfs = []
+        month_found = set()
+
+        # BLC_4: Ações, BDRs, ETFs
+        df_blc4 = _download_cvm_blc4(ym)
+        if df_blc4 is not None and not df_blc4.empty:
+            recs4 = _processar_blc4_cnpjs(df_blc4, cnpjs_pendentes)
+            if not recs4.empty:
+                month_dfs.append(recs4)
+                month_found.update(recs4["cnpj_fundo"].unique())
+
+        # BLC_2: Cotas de fundos
+        df_blc2 = _download_cvm_blc(2, ym)
+        if df_blc2 is not None and not df_blc2.empty:
+            recs2 = _processar_blc2_cnpjs(df_blc2, cnpjs_pendentes)
+            if not recs2.empty:
+                month_dfs.append(recs2)
+                month_found.update(recs2["cnpj_fundo"].unique())
+
+        # BLC_1: Títulos públicos
+        df_blc1 = _download_cvm_blc(1, ym)
+        if df_blc1 is not None and not df_blc1.empty:
+            recs1 = _processar_blc1_cnpjs(df_blc1, cnpjs_pendentes)
+            if not recs1.empty:
+                month_dfs.append(recs1)
+                month_found.update(recs1["cnpj_fundo"].unique())
+
+        # BLC_5: Depósitos a prazo / BLC_6: Debêntures
+        for blc_n, setor_d, pref in [(5, "Renda Fixa", "DEP"), (6, "Renda Fixa", "DEB")]:
+            df_blc_n = _download_cvm_blc(blc_n, ym)
+            if df_blc_n is not None and not df_blc_n.empty:
+                recs_n = _processar_blc_generico_cnpjs(df_blc_n, cnpjs_pendentes, setor_d, pref)
+                if not recs_n.empty:
+                    month_dfs.append(recs_n)
+                    month_found.update(recs_n["cnpj_fundo"].unique())
+
+        if month_dfs:
+            df_month = pd.concat(month_dfs, ignore_index=True)
+
+            # PL real do arquivo CDA PL
+            df_pl_cvm = _download_cvm_pl(ym)
+            pl_map = {}
+            if df_pl_cvm is not None and not df_pl_cvm.empty:
+                pl_col = "CNPJ_FUNDO_CLASSE" if "CNPJ_FUNDO_CLASSE" in df_pl_cvm.columns else "CNPJ_FUNDO"
+                if pl_col in df_pl_cvm.columns and "VL_PATRIM_LIQ" in df_pl_cvm.columns:
+                    df_pl_cvm["_cnpj"] = df_pl_cvm[pl_col].apply(_normalizar_cnpj)
+                    for cnpj in month_found:
+                        pl_rows = df_pl_cvm[df_pl_cvm["_cnpj"] == cnpj]
+                        if not pl_rows.empty:
+                            pl_map[cnpj] = float(pl_rows["VL_PATRIM_LIQ"].iloc[-1])
+
+            # Fallback PL: soma de posições
+            pl_approx = df_month.groupby("cnpj_fundo")["valor"].sum().to_dict()
+
+            df_month["pl"] = df_month["cnpj_fundo"].map(
+                lambda c: pl_map.get(c, pl_approx.get(c, 0)))
+
+            # Adicionar entrada "Outros RF/Caixa" para o valor não explicado
+            for cnpj in month_found:
+                pl_total = pl_map.get(cnpj, 0)
+                if pl_total > 0:
+                    soma_explicada = df_month[df_month["cnpj_fundo"] == cnpj]["valor"].sum()
+                    residual = pl_total - soma_explicada
+                    if residual > pl_total * 0.01:  # >1% do PL
+                        dt_ref = df_month[df_month["cnpj_fundo"] == cnpj]["data"].iloc[0]
+                        month_dfs.append(pd.DataFrame([{
+                            "cnpj_fundo": cnpj, "data": dt_ref,
+                            "ativo": "OUTROS RF/CAIXA", "valor": residual,
+                            "setor": "Caixa",
+                        }]))
+
+            # Reconcat with residuals
+            df_month = pd.concat(month_dfs, ignore_index=True)
+            df_month["pl"] = df_month["cnpj_fundo"].map(
+                lambda c: pl_map.get(c, pl_approx.get(c, 0)))
+
+            all_dfs.append(df_month)
+        cnpjs_encontrados.update(month_found)
+
+    if not all_dfs:
+        return pd.DataFrame(columns=_COLS_POSICOES)
+
+    df = pd.concat(all_dfs, ignore_index=True)
+    df["data"] = pd.to_datetime(df["data"], errors="coerce")
+    df["pct_pl"] = np.where(df["pl"] > 0, df["valor"] / df["pl"] * 100, 0)
+    df["fonte"] = "CVM_SOB_DEMANDA"
+
+    return df[_COLS_POSICOES].copy()
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # Download e parse CVM inf_diario (cotas diárias)
 # ──────────────────────────────────────────────────────────────────────────────

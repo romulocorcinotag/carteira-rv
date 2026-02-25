@@ -60,6 +60,7 @@ from data_loader import (
     carregar_dados_cvm,
     carregar_cotas_fundos,
     carregar_universo_stats,
+    buscar_carteiras_cvm_sob_demanda,
     _download_cvm_blc4,
     _download_cvm_pl,
     _normalizar_cnpj,
@@ -337,9 +338,33 @@ def main():
     df_posicoes = pd.concat([df_xml, df_cvm], ignore_index=True)
     df_posicoes = _dedup_consolidado(df_posicoes, df_fundos)
 
-    df_posicoes.to_parquet(os.path.join(DATA_DIR, "posicoes_consolidado.parquet"), index=False)
     print(f"  -> {len(df_posicoes)} registros consolidados")
     print(f"  -> CNPJs com dados: {df_posicoes['cnpj_fundo'].nunique()}")
+
+    # ── 4b. CVM sob demanda para fundos investidos (Mellon cotas) ──
+    # Identificar CNPJs de fundos investidos (cotas) que não estão no universo
+    cnpjs_no_consolidado = set(df_posicoes["cnpj_fundo"].unique())
+    _cotas_entries = df_posicoes[df_posicoes["ativo"].str.startswith("FUNDO ", na=False)]
+    if not _cotas_entries.empty:
+        _cnpjs_investidos = set(
+            _cotas_entries["ativo"].str.replace("FUNDO ", "", regex=False).unique()
+        )
+        _cnpjs_sem_dados = {c for c in _cnpjs_investidos
+                           if c and len(c) == 14 and c not in cnpjs_no_consolidado}
+        if _cnpjs_sem_dados:
+            print(f"\n[4b] Buscando CVM sob demanda para {len(_cnpjs_sem_dados)} fundos investidos...")
+            t0 = time.time()
+            df_cvm_extra = buscar_carteiras_cvm_sob_demanda(
+                tuple(_cnpjs_sem_dados), meses_max=6)
+            if not df_cvm_extra.empty:
+                df_posicoes = pd.concat([df_posicoes, df_cvm_extra], ignore_index=True)
+                print(f"  -> {len(df_cvm_extra)} registros adicionais de "
+                      f"{df_cvm_extra['cnpj_fundo'].nunique()} fundos em {time.time()-t0:.1f}s")
+            else:
+                print(f"  -> Nenhum dado CVM encontrado para os fundos investidos ({time.time()-t0:.1f}s)")
+
+    df_posicoes.to_parquet(os.path.join(DATA_DIR, "posicoes_consolidado.parquet"), index=False)
+    print(f"  -> Total final: {len(df_posicoes)} registros, {df_posicoes['cnpj_fundo'].nunique()} CNPJs")
 
     # ── 5. Cotas dos fundos (inf_diario) ──
     print("\n[5/8] Exportando cotas dos fundos (10 anos)...")
