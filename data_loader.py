@@ -6,6 +6,7 @@ MODO CLOUD: Se data/posicoes_consolidado.parquet existir, lê diretamente
 dos parquets pré-exportados (sem necessidade de Google Drive ou CVM API).
 Use export_data.py para gerar os parquets localmente.
 """
+from __future__ import annotations
 
 import os
 import re
@@ -774,7 +775,7 @@ def _processar_blc1_cnpjs(df_blc1: pd.DataFrame, cnpjs: set) -> pd.DataFrame:
         columns={"DT_COMPTC": "data", "VL_MERC_POS_FINAL": "valor"})
 
 
-@st.cache_data(ttl=3600, show_spinner="Buscando carteiras CVM dos fundos investidos...")
+@st.cache_data(ttl=3600, show_spinner=False)
 def buscar_carteiras_cvm_sob_demanda(cnpjs_alvo: tuple, meses_max: int = 6) -> pd.DataFrame:
     """Busca carteira completa de fundos via CVM (BLC_4 + BLC_2 + BLC_1).
 
