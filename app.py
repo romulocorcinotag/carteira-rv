@@ -61,6 +61,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── SSO Authentication Guard ──
+from sso_auth import require_sso
+sso_user = require_sso()
+
 _APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # Logo grande para sidebar
